@@ -1,4 +1,3 @@
-#! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
 # Copyright (c) Huoty, All rights reserved
@@ -6,7 +5,17 @@
 
 import re
 import json
-from urllib2 import urlopen
+from importlib import import_module
+
+try:
+    from urllib.request import urlopen, Request as HTTPRequest
+except ImportError:
+    from urllib2 import urlopen, Request as HTTPRequest
+
+try:
+    from io import StringIO
+except ImportError:
+    from StringIO import StringIO
 
 
 class JQDataError(Exception):
@@ -23,10 +32,12 @@ class JQDataApi(object):
 
     _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
 
-    def __init__(self, user, password, url=None):
+    def __init__(self, user=None, password=None, url=None,
+                 auto_format_data=False):
         self.user = user
         self.password = password
         self.url = url or self._DEFAULT_URL
+        self.auto_format_data = auto_format_data
 
         self.token = None
         self.timeout = 10
@@ -63,9 +74,9 @@ class JQDataApi(object):
         return resp_data
 
     def get_token(self, mob=None, pwd=None):
-        if not mob:
+        if mob:
             self.user = mob
-        if not pwd:
+        if pwd:
             self.password = pwd
         data = self._request_data(
             "get_token", mob=self.user, pwd=self.password
@@ -74,9 +85,9 @@ class JQDataApi(object):
         return data
 
     def get_current_token(self, mob=None, pwd=None):
-        if not mob:
+        if mob:
             self.user = mob
-        if not pwd:
+        if pwd:
             self.password = pwd
         data = self._request_data(
             "get_current_token", mob=self.user, pwd=self.password
@@ -86,4 +97,42 @@ class JQDataApi(object):
 
     def __getattr__(self, name):
         if name.startswith("get_") or name == "run_query":
-            pass
+
+            def wrapper(**kwargs):
+                data = self._request_data(name, **kwargs)
+                if not self.auto_format_data:
+                    return data
+                if name in {"get_query_count"}:
+                    data = int(data)
+                elif name in {"get_fund_info"}:
+                    data = json.loads(data)
+                elif name in {
+                    "get_index_stocks",
+                    "get_margincash_stocks",
+                    "get_marginsec_stocks",
+                    "get_industry_stocks",
+                    "get_concept_stocks",
+                    "get_trade_days",
+                    "get_all_trade_days",
+                }:
+                    data = data.split()
+                else:
+                    data = _csv2df(data)
+                return data
+
+            wrapper.__name__ = name
+            setattr(self, name, wrapper)
+
+        return object.__getattribute__(self, name)
+
+
+dataapi = JQDataApi()
+
+
+def _csv2array(data):
+    pass
+
+
+def _csv2df(data):
+    pd = import_module("pandas")
+    return pd.read_csv(StringIO(data))
