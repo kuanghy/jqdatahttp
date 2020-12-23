@@ -8,12 +8,12 @@ from jqdatahttp import JQDataApi
 
 
 def test_dataapi():
-    dataapi = jqdatahttp.dataapi
-    dataapi.auto_format_data = True
-    print(dataapi.get_token())
+    api = jqdatahttp.api
+    api.auto_format_data = True
+    print(api.get_token())
 
-    data = dataapi.get_index_stocks(code="000300.XSHG", date="2019-01-09")
+    data = api.get_index_stocks(code="000300.XSHG", date="2019-01-09")
     print(data)
 
-    data = dataapi.get_security_info(code="000001.XSHE")
+    data = api.get_security_info(code="000001.XSHE")
     print(data)

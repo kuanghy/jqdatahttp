@@ -32,9 +32,9 @@ class JQDataApi(object):
 
     _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
 
-    def __init__(self, user=None, password=None, url=None,
+    def __init__(self, username=None, password=None, url=None,
                  auto_format_data=False):
-        self.user = user
+        self.username = username
         self.password = password
         self.url = url or self._DEFAULT_URL
         self.auto_format_data = auto_format_data
@@ -75,30 +75,35 @@ class JQDataApi(object):
 
     def get_token(self, mob=None, pwd=None):
         if mob:
-            self.user = mob
+            self.username = mob
         if pwd:
             self.password = pwd
         data = self._request_data(
-            "get_token", mob=self.user, pwd=self.password
+            "get_token", mob=self.username, pwd=self.password
         )
         self.token = data
         return data
 
     def get_current_token(self, mob=None, pwd=None):
         if mob:
-            self.user = mob
+            self.username = mob
         if pwd:
             self.password = pwd
         data = self._request_data(
-            "get_current_token", mob=self.user, pwd=self.password
+            "get_current_token", mob=self.username, pwd=self.password
         )
         self.token = data
         return data
 
+    def auth(self, username=None, password=None, url=None):
+        if url:
+            self.url = url
+        self.get_token(mob=username, pwd=password)
+
     def __getattr__(self, name):
         if name.startswith("get_") or name == "run_query":
 
-            def wrapper(**kwargs):
+            def wrapper(self, **kwargs):
                 data = self._request_data(name, **kwargs)
                 if not self.auto_format_data:
                     return data
@@ -120,13 +125,14 @@ class JQDataApi(object):
                     data = _csv2df(data)
                 return data
 
+            cls = self.__class__
             wrapper.__name__ = name
-            setattr(self, name, wrapper)
+            setattr(cls, name, wrapper)
 
         return object.__getattribute__(self, name)
 
 
-dataapi = JQDataApi()
+api = JQDataApi()
 
 
 def _csv2array(data):
@@ -136,3 +142,7 @@ def _csv2array(data):
 def _csv2df(data):
     pd = import_module("pandas")
     return pd.read_csv(StringIO(data))
+
+
+def auth(username, password, url=None):
+    api.auth(username=username, password=password, url=url)
