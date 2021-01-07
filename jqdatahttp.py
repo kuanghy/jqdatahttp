@@ -181,7 +181,22 @@ class _LazyModuleType(ModuleType):
 
 np = _LazyModuleType("numpy")
 pd = _LazyModuleType("pandas")
-six = _LazyModuleType("six")
+
+
+def is_string_types(obj):
+    if sys.version_info[0] < 3:
+        string_types = basestring
+    else:
+        string_types = str
+    return isinstance(obj, string_types)
+
+
+def is_text_type(obj):
+    if sys.version_info[0] < 3:
+        text_type = unicode
+    else:
+        text_type = str
+    return isinstance(obj, text_type)
 
 
 def _csv2list(data):
@@ -429,7 +444,23 @@ def get_concept(security, date):
 
 def get_all_securities(types=[], date=None):
     """获取平台支持的所有股票、基金、指数、期货信息"""
-    date = to_date(date)
+    if is_string_types(types):
+        types = [types]
+    if date:
+        date = to_date(date)
+    securities = []
+    for code in types:
+        params = {"code": code}
+        if date:
+            params["date"] = date
+        data = api.get_all_securities(**params)
+        data = _csv2list(data)
+        if not securities:
+            securities.extend(data)
+        else:
+            securities.extend(data[1:])
+    securities = pd.DataFrame(securities[1:], columns=securities[0])
+    return securities.set_index('code')
 
 
 def get_security_info(code, date=None):
