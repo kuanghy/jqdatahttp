@@ -39,12 +39,10 @@ class JQDataApi(object):
 
     _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
 
-    def __init__(self, username=None, password=None, url=None,
-                 auto_format_data=False):
+    def __init__(self, username=None, password=None, url=None):
         self.username = username
         self.password = password
         self.url = url or self._DEFAULT_URL
-        self.auto_format_data = auto_format_data
 
         self.token = None
         self.timeout = 10
@@ -111,9 +109,11 @@ class JQDataApi(object):
         if name.startswith("get_") or name == "run_query":
 
             def wrapper(self, **kwargs):
+                auto_format_result = kwargs.pop("auto_format_result", False)
                 data = self._request_data(name, **kwargs)
-                if not self.auto_format_data:
+                if not auto_format_result:
                     return data
+
                 if name in {"get_query_count"}:
                     data = int(data)
                 elif name in {"get_fund_info"}:
@@ -247,18 +247,24 @@ def _array2date(data):
 class Security(object):
     """证券标的信息"""
 
-    __slots__ = ('_code', '_start_date', '_end_date', '_type', '_name',
+    __slots__ = ('_code', '_type', '_start_date', '_end_date', '_name',
                  '_display_name', '_parent', '_extra')
 
-    def __init__(self, code, start_date, type, **kwargs):
-        if not (code and start_date and type):
+    def __init__(self, code=None, type=None, start_date=None, **kwargs):
+        self._code = code or kwargs.pop("code", None)
+        self._type = type or kwargs.pop("type", None)
+        if start_date:
+            self._start_date = to_date(start_date)
+        else:
+            if "start_date" in kwargs:
+                self._start_date = to_date(kwargs.pop("start_date"))
+            else:
+                self._start_date = None
+
+        if not (self._code and self._type and self._start_date):
             raise JQDataError(
                 '实例化 Security 对象时必须提供 code, start_date, type 参数'
             )
-
-        self._code = _code
-        self._start_date = to_date(_start_date)
-        self._type = _type
 
         end_date = kwargs.pop("end_date", None)
         self._end_date = to_date(end_date) if end_date else None
@@ -270,8 +276,8 @@ class Security(object):
         self._extra = kwargs
 
     def __repr__(self):
-        return "{}(code={}, start_date={}, type={})".format(
-            self.__class__.__name__, self._code, self._start_date, self._type
+        return "{}(code='{}', type='{}', start_date='{}')".format(
+            self.__class__.__name__, self._code, self._type, self._start_date
         )
 
     @property
@@ -429,12 +435,12 @@ def get_all_securities(types=[], date=None):
 def get_security_info(code, date=None):
     """获取股票/基金/指数的信息"""
     assert code, "code is required"
-    date = to_date(date)
+    date = to_date(date) if date else datetime.date.today()
     data = api.get_security_info(code=code)
     data = data.strip().split()
     if len(data) < 2:
         return None
-    info = dict(zip(data[0], data[1]))
+    info = dict(zip(data[0].split(","), data[1].split(",")))
     return Security(**info)
 
 
