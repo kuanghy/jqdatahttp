@@ -3,10 +3,13 @@
 # Copyright (c) Huoty, All rights reserved
 # Author: Huoty <sudohuoty@163.com>
 
+from __future__ import print_function
+
 import sys
 import re
 import json
 import datetime
+import functools
 from types import ModuleType
 
 try:
@@ -52,12 +55,26 @@ class JQDataApi(object):
         r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)'
     )
 
+    @staticmethod
+    def _json_serial_fallback(obj):
+        if isinstance(obj, datetime.date):
+            return obj.strftime('%Y-%m-%d')
+        if isinstance(obj, datetime.datetime):
+            return obj.strftime('%Y-%m-%d %H:%M:%S')
+        raise TypeError("%s not serializable" % obj)
+
+    @classmethod
+    def _json_dumps(cls, obj, **kwargs):
+        return json.dumps(obj, default=cls._json_serial_fallback, **kwargs)
+
     def _request(self, data):
-        req_body = json.dumps(data).encode(self._encoding)
+        req_body = self._json_dumps(data).encode(self._encoding)
         req = HTTPRequest(self.url, data=req_body, method="POST")
         with urlopen(req, timeout=self.timeout) as resp:
             resp_body = resp.read()
             resp_data = resp_body.decode(self._encoding)
+            if resp_data.startswith("error:"):
+                raise JQDataError(resp_data.replace("error:", "").strip())
             if resp.status != 200:
                 raise JQDataError(resp_data)
         if re.search(self._INVALID_TOKEN_PATTERN, resp_data):
@@ -70,7 +87,9 @@ class JQDataApi(object):
             if not self.token:
                 self.get_token()
             req_data["token"] = self.token
-        req_data.update(kwargs)
+        req_data.update({
+            key: val for key, val in kwargs.items() if val is not None
+        })
         try:
             resp_data = self._request(req_data)
         except InvalidTokenError:
@@ -110,7 +129,12 @@ class JQDataApi(object):
 
             def wrapper(self, **kwargs):
                 auto_format_result = kwargs.pop("auto_format_result", False)
+                show_raw_result = kwargs.pop("show_raw_result", False)
                 data = self._request_data(name, **kwargs)
+                if show_raw_result:
+                    print("start show raw result", "-" * 20)
+                    print(data)
+                    print("end show raw result", "-" * 20)
                 if not auto_format_result:
                     return data
 
@@ -207,13 +231,23 @@ def _csv2list(data):
     return data
 
 
-def _csv2array(data):
+def _csv2array(data, dtype=None, skip_header=0):
     """转换为 numpy 数组"""
-    return np.array(_csv2list(data))
+    if not data:
+        return np.empty((0, 0))
+    if dtype and not isinstance(dtype, np.dtype):
+        dtype = np.dtype(dtype)
+    return np.genfromtxt(
+        StringIO(data), dtype=dtype, delimiter=",", skip_header=skip_header
+    )
 
 
-def _csv2df(data):
+def _csv2df(data, dtype=None):
     """转化为 pandas.DataFrame 类型"""
+    if not data:
+        return np.DataFrame()
+    if dtype and not isinstance(dtype, np.dtype):
+        dtype = np.dtype(dtype)
     return pd.read_csv(StringIO(data))
 
 
@@ -224,7 +258,7 @@ def _date2dt(date):
 
 def to_date(date):
     """转化为 datetime.date 类型"""
-    if isinstance(date, six.string_types):
+    if is_string_types(date):
         if ':' in date:
             date = date[:10]
         try:
@@ -241,12 +275,12 @@ def to_date(date):
 
 def to_datetime(dt):
     """转化为 datetime.datetime 类型"""
-    if isinstance(dt, (str, six.text_type)):
+    if is_string_types(dt):
         try:
             return datetime.datetime(*map(int, re.split(r"\W+", dt)))
         except Exception:
             pass
-    elif isinstance(dt, datetime):
+    elif isinstance(dt, datetime.datetime):
         return dt
     elif isinstance(dt, datetime.date):
         return _date2dt(dt)
@@ -255,7 +289,12 @@ def to_datetime(dt):
 
 
 def _array2date(data):
-    vectorize = np.vectorize(to_date, otypes=[datetime.datetime])
+    vectorize = np.vectorize(to_date, otypes=[datetime.date])
+    return vectorize(data)
+
+
+def _array2datetime(data):
+    vectorize = np.vectorize(to_datetime, otypes=[datetime.datetime])
     return vectorize(data)
 
 
@@ -372,20 +411,242 @@ class Security(object):
         return info
 
 
-def get_price(security, start_date=None, end_date=None, frequency='daily',
+def get_security_info(code, date=None):
+    """获取股票/基金/指数的信息"""
+    assert code, "code is required"
+    date = to_date(date) if date else datetime.date.today()
+    data = api.get_security_info(code=code)
+    data = data.strip().split()
+    if len(data) < 2:
+        return None
+    info = dict(zip(data[0].split(","), data[1].split(",")))
+    return Security(**info)
+
+
+def get_all_securities(types=[], date=None):
+    """获取平台支持的所有股票、基金、指数、期货信息"""
+    if is_string_types(types):
+        types = [types]
+    if date:
+        date = to_date(date)
+    securities = []
+    for code in types:
+        params = {"code": code}
+        if date:
+            params["date"] = date
+        data = api.get_all_securities(**params)
+        data = _csv2list(data)
+        if not securities:
+            securities.extend(data)
+        else:
+            securities.extend(data[1:])
+    securities = pd.DataFrame(securities[1:], columns=securities[0])
+    return securities.set_index('code')
+
+
+def get_all_trade_days():
+    """获取所有交易日"""
+    data = _csv2array(api.get_all_trade_days())
+    return _array2date(data)
+
+
+def get_trade_days(start_date=None, end_date=None, count=None):
+    """获取指定日期范围内的所有交易日"""
+    if start_date and count:
+        raise ParamsError("start_date 参数与 count 参数只能二选一")
+    if not (count is None or count > 0):
+        raise ParamsError("count 参数需要大于 0 或者为 None")
+
+    end_date = to_date(end_date) if end_date else datetime.date.today()
+
+    dates = get_all_trade_days()
+
+    if start_date:
+        start_date = to_date(start_date)
+        start_idx = dates.searchsorted(start_date)
+    else:
+        start_idx = 0
+    end_idx = dates.searchsorted(end_date, side='right')
+
+    if not count and all([start_date, end_date]):
+        return dates[start_idx:end_idx]
+    if not end_date and all([start_date, count]):
+        return dates[start_idx:(start_idx + count)]
+    if not start_date and all([end_date, count]):
+        return dates[(end_idx - count if end_idx > count else 0):end_idx]
+    if start_date and not any([end_date, count]):
+        return dates[start_idx:]
+    if end_date and not any([start_date, count]):
+        return dates[:end_idx]
+    raise ParamsError("start_date 参数与 count 参数必须输入一个")
+
+
+def normalize_code(code):
+    """归一化证券代码
+
+    如将证券代码 000001 转化为全称 000001.XSHE
+    """
+
+
+def _convert_security(security):
+    if is_string_types(security):
+        if "," in security:
+            return security.split(",")
+        else:
+            return [security]
+    elif isinstance(security, Security):
+        return [security.code]
+    elif isinstance(security, (list, tuple)):
+        return [
+            item.code if isinstance(item, Security) else item
+            for item in security
+        ]
+    else:
+        raise ParamsError("security type should be Security or list")
+
+
+_bar_data_dtype = [
+    ("date", "U30"), ("open", "<f8"), ("close", "<f8"), ("high", "<f8"),
+    ("low", "<f8"), ("volume", "<i8"), ("money", "<f8"), ("paused", "<i1"),
+    ("high_limit", "<f8"), ("low_limit", "<f8"), ("avg", "<f8"),
+    ("pre_close", "<f8")
+]
+
+
+_tick_data_dtype = [
+    ('time', '<i8'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
+    ('volume', '<i8'), ('money', '<f8'),
+    ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
+    ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
+    ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
+    ('b1_p', '<f8'), ('b2_p', '<f8'), ('b3_p', '<f8'), ('b4_p', '<f8'), ('b5_p', '<f8'),
+]
+
+_tick_data_dtype2 = [
+    ('time', '<i8'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
+    ('volume', '<i8'), ('money', '<f8'), ('position', '<f8'),
+    ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
+    ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
+    ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
+    ('b1_p', '<f8'), ('b2_p', '<f8'), ('b3_p', '<f8'), ('b4_p', '<f8'), ('b5_p', '<f8'),
+]
+
+
+def get_price(security, start_date=None, end_date=None, frequency='1d',
               fields=None, skip_paused=False, fq='pre', count=None,
               panel=False, fill_paused=True):
     """获取一支或者多只证券的行情数据"""
     if panel:
         raise ParamsError("'panel' param is discarded")
-    start_date = str(to_date(start_date))
-    end_date = str(to_date(end_date))
+    start_date = to_date(start_date) if start_date else None
+    end_date = to_date(end_date) if end_date else None
     if (not count) and (not start_date):
         start_date = "2015-01-01"
     if count and start_date:
         raise ParamsError("(start_date, count) only one param is required")
-    api.get_price(code=security, end_date=None, count=count, unit=None, fq_ref_date=None)
-    return None
+    if frequency == "daily":
+        frequency = "1d"
+    elif frequency == "minute":
+        frequency = "1m"
+    if not fields:
+        fields = ['open', 'close', 'high', 'low', 'volume', 'money']
+    fields.insert(0, "date")
+
+    data = api.get_price(
+        code=security,
+        end_date=end_date,
+        count=10,
+        unit=frequency,
+        fq_ref_date=None
+    )
+    data = _csv2df(data)
+    return data[fields].set_index("date")
+
+
+def get_bars(security, count, unit="1d", fields=None, include_now=False,
+             end_dt=None, fq_ref_date=None, df=True):
+    """获取历史数据(包含快照数据), 可查询单个标的多个数据字段"""
+    security = _convert_security(security)
+    assert count > 0
+    if end_dt:
+        end_dt = to_datetime(end_dt)
+    if fq_ref_date:
+        fq_ref_date = to_date(fq_ref_date)
+
+    bars_mapping = {}
+    for code in security:
+        data = api.get_bars(
+            code=code,
+            count=int(count),
+            unit=unit,
+            end_date=end_dt,
+            fq_ref_date=fq_ref_date,
+        )
+        bars = _csv2array(data, dtype=_bar_data_dtype, skip_header=1)
+        bars["date"] = _array2datetime(bars["date"])
+        bars_mapping[code] = bars[fields] if fields else bars
+
+    if df:
+        dfs = []
+        for code, arr in bars_mapping.items():
+            index = [[code] * arr.size, list(range(arr.size))]
+            dfs.append(pd.DataFrame(data=arr, index=index))
+        return pd.concat(dfs, copy=False)
+    else:
+        return bars_mapping
+
+
+def get_last_price(codes):
+    """获取标的的最新价格"""
+    codes = convert_security(codes)
+
+
+def get_current_tick(security):
+    """获取最新的 tick 数据"""
+    if isinstance(security, Security):
+        security = security.code
+    return _csv2df(api.get_current_tick(code=security), dtype=_tick_data_dtype)
+
+
+def get_current_ticks(security):
+    """获取多标的最新的 tick 数据"""
+    security = _convert_security(security)
+    dtype = [("code", "U30")] + _tick_data_dtype
+    return _csv2df(api.get_current_ticks(code=",".join(security)), dtype=dtype)
+
+
+def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=False):
+    """获取 Tick 数据"""
+    is_list_security = isinstance(security, (tuple, list, set))
+    security = _convert_security(security)
+    end_dt = to_datetime(end_dt) if end_dt else datetime.datetime.now()
+    if start_dt and count:
+        raise ParamsError("start_dt 与 count 参数只能二选一")
+    if count:
+        assert count > 0
+        get_data = functools.partial(api.get_ticks, count=count, end_date=end_dt)
+    else:
+        start_dt = to_datetime(start_dt if start_dt else end_dt.date())
+        get_data = functools.partial(api.get_ticks_period, date=start_dt, end_date=end_dt)
+
+    ticks_mapping = {}
+    for code in security:
+        data = get_data(code=code)
+        ticks = _csv2array(data, dtype=_tick_data_dtype, skip_header=1)
+        ticks_mapping[code] = ticks[fields] if fields else ticks
+
+    if df:
+        dfs = []
+        for code, arr in ticks_mapping.items():
+            index = [[code] * arr.size, list(range(arr.size))]
+            dfs.append(pd.DataFrame(data=arr, index=index))
+        return pd.concat(dfs, copy=False)
+    else:
+        if is_list_security or len(ticks_mapping) > 1:
+            return ticks_mapping
+        else:
+            _, ticks = ticks_mapping.popitem()
+            return ticks
 
 
 def get_extras(info, security_list, start_date=None, end_date=None, df=True, count=None):
@@ -442,76 +703,6 @@ def get_concept(security, date):
     date = to_date(date)
 
 
-def get_all_securities(types=[], date=None):
-    """获取平台支持的所有股票、基金、指数、期货信息"""
-    if is_string_types(types):
-        types = [types]
-    if date:
-        date = to_date(date)
-    securities = []
-    for code in types:
-        params = {"code": code}
-        if date:
-            params["date"] = date
-        data = api.get_all_securities(**params)
-        data = _csv2list(data)
-        if not securities:
-            securities.extend(data)
-        else:
-            securities.extend(data[1:])
-    securities = pd.DataFrame(securities[1:], columns=securities[0])
-    return securities.set_index('code')
-
-
-def get_security_info(code, date=None):
-    """获取股票/基金/指数的信息"""
-    assert code, "code is required"
-    date = to_date(date) if date else datetime.date.today()
-    data = api.get_security_info(code=code)
-    data = data.strip().split()
-    if len(data) < 2:
-        return None
-    info = dict(zip(data[0].split(","), data[1].split(",")))
-    return Security(**info)
-
-
-def get_all_trade_days():
-    """获取所有交易日"""
-    data = _csv2array(api.get_all_trade_days())
-    return _array2date(data)
-
-
-def get_trade_days(start_date=None, end_date=None, count=None):
-    """获取指定日期范围内的所有交易日"""
-    if start_date and count:
-        raise ParamsError("start_date 参数与 count 参数只能二选一")
-    if not (count is None or count > 0):
-        raise ParamsError("count 参数需要大于 0 或者为 None")
-
-    end_date = to_date(end_date) if end_date else datetime.date.today()
-
-    dates = get_all_trade_days()
-
-    if start_date:
-        start_date = to_date(start_date)
-        start_idx = dates.searchsorted(start_date)
-    else:
-        start_idx = 0
-    end_idx = dates.searchsorted(end_date, side='right')
-
-    if not count and all([start_date, end_date]):
-        return dates[start_idx:end_idx]
-    if not end_date and all([start_date, count]):
-        return dates[start_idx:(start_idx + count)]
-    if not start_date and all([end_date, count]):
-        return dates[(end_idx - count if end_idx > count else 0):end_idx]
-    if start_date and not any([end_date, count]):
-        return dates[start_idx:]
-    if end_date and not any([start_date, count]):
-        return dates[:end_idx]
-    raise ParamsError("start_date 参数与 count 参数必须输入一个")
-
-
 def get_money_flow(security_list, start_date=None, end_date=None, fields=None, count=None):
     """获取一只或者多只股票在一个时间段内的资金流向数据"""
     assert security_list, "security_list is required"
@@ -549,23 +740,10 @@ def get_dominant_future(underlying_symbol, date=None):
     dt = to_date(date)
 
 
-def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=True):
-    """获取 Tick 数据"""
-    start_dt = to_date(start_dt)
-    end_dt = to_date(end_dt)
-
-
 def get_baidu_factor(category=None, day=None, stock=None, province=None):
     """获取百度因子搜索量数据"""
     day = to_date(day)
     stock = normal_security_code(stock)
-
-
-def normalize_code(code):
-    """归一化证券代码
-
-    如将证券代码 000001 转化为全称 000001.XSHE
-    """
 
 
 def get_factor_values(securities, factors, start_date=None, end_date=None, count=None):
@@ -593,33 +771,11 @@ def get_industry(security, date=None):
     date = to_date(date)
 
 
-def get_bars(security, count, unit="1d",
-             fields=("date", "open", "high", "low", "close"),
-             include_now=False, end_dt=None, fq_ref_date=None, df=True):
-    """获取历史数据(包含快照数据), 可查询单个标的多个数据字段"""
-    assert security, "security is required"
-    security = convert_security(security)
-    end_dt = to_date(end_dt)
-    fq_ref_date = to_date(fq_ref_date)
-
-
-def get_current_tick(security):
-    """获取最新的 tick 数据"""
-    if isinstance(security, Security):
-        security = security.code
-    return _csv2df(api.get_current_tick(code=security))
-
-
 def get_fund_info(security, date=None):
     """基金基础信息数据接口"""
     assert security, "security is required"
     security = convert_security(security)
     date = to_date(date)
-
-
-def get_last_price(codes):
-    """获取标的的最新价格"""
-    codes = convert_security(codes)
 
 
 def get_factor_effect(security, start_date, end_date, period, factor, group_num=5):
