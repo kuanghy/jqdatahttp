@@ -248,7 +248,7 @@ def _csv2df(data, dtype=None):
         return np.DataFrame()
     if dtype and not isinstance(dtype, np.dtype):
         dtype = np.dtype(dtype)
-    return pd.read_csv(StringIO(data))
+    return pd.read_csv(StringIO(data), dtype=dtype)
 
 
 def _date2dt(date):
