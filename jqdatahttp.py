@@ -133,7 +133,7 @@ class JQDataApi(object):
             self.url = url
         self.get_token(mob=username, pwd=password)
 
-    def logout():
+    def logout(self):
         self._username = None
         self._password = None
         self.token = None
@@ -407,7 +407,7 @@ class Security(object):
 
     @property
     def parent(self):
-        """"分级基金的母基
+        """分级基金的母基
 
         其他类型返回 None
         """
