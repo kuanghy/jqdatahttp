@@ -5,6 +5,7 @@
 
 from __future__ import print_function
 
+import os
 import sys
 import re
 import json
@@ -23,7 +24,7 @@ except ImportError:
     from StringIO import StringIO
 
 
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 
 
 class JQDataError(Exception):
@@ -43,8 +44,8 @@ class JQDataApi(object):
     _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
 
     def __init__(self, username=None, password=None, url=None):
-        self.username = username
-        self.password = password
+        self._username = username
+        self._password = password
         self.url = url or self._DEFAULT_URL
 
         self.token = None
@@ -54,6 +55,14 @@ class JQDataApi(object):
     _INVALID_TOKEN_PATTERN = re.compile(
         r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)'
     )
+
+    @property
+    def username(self):
+        return self._username or os.getenv("JQDATA_USERNAME")
+
+    @property
+    def password(self):
+        return self._password or os.getenv("JQDATA_PASSWORD")
 
     @staticmethod
     def _json_serial_fallback(obj):
@@ -99,9 +108,9 @@ class JQDataApi(object):
 
     def get_token(self, mob=None, pwd=None):
         if mob:
-            self.username = mob
+            self._username = mob
         if pwd:
-            self.password = pwd
+            self._password = pwd
         data = self._request_data(
             "get_token", mob=self.username, pwd=self.password
         )
@@ -110,9 +119,9 @@ class JQDataApi(object):
 
     def get_current_token(self, mob=None, pwd=None):
         if mob:
-            self.username = mob
+            self._username = mob
         if pwd:
-            self.password = pwd
+            self._password = pwd
         data = self._request_data(
             "get_current_token", mob=self.username, pwd=self.password
         )
@@ -123,6 +132,11 @@ class JQDataApi(object):
         if url:
             self.url = url
         self.get_token(mob=username, pwd=password)
+
+    def logout():
+        self._username = None
+        self._password = None
+        self.token = None
 
     def __getattr__(self, name):
         if name.startswith("get_") or name == "run_query":
@@ -173,6 +187,14 @@ def auth(username, password, url=None):
 
 def logout():
     """退出账号"""
+
+
+def get_token(username=None, password=None):
+    """获取 Token，如果指定账号密码则获取新的 Token，否则获取当前 Token"""
+    if username and password:
+        return api.get_token(mob=username, pwd=password)
+    else:
+        return api.token
 
 
 def get_query_count(field=None):
