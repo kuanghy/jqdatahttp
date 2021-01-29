@@ -326,7 +326,19 @@ class Security(object):
     """证券标的信息"""
 
     __slots__ = ('_code', '_type', '_start_date', '_end_date', '_name',
-                 '_display_name', '_parent', '_extra')
+                 '_display_name', '_parent', '_sid', '_exchange',
+                 '_exchange_name', '_extra')
+
+    _EXCHANGE_MAPPING = {
+        'XSHG': '上海证券交易所',
+        'XSHE': '深圳证券交易所',
+        'CCFX': '中国金融期货交易所',
+        'XSGE': '上海期货交易所',
+        'XDCE': '郑州商品交易所',
+        'XZCE': '大连商品交易所',
+        'XINE': '上海国际能源期货交易所',
+        'OF': '场外基金',
+    }
 
     def __init__(self, code=None, type=None, start_date=None, **kwargs):
         self._code = code or kwargs.pop("code", None)
@@ -343,6 +355,7 @@ class Security(object):
             raise JQDataError(
                 '实例化 Security 对象时必须提供 code, start_date, type 参数'
             )
+        assert '.' in code, 'invalid security code'
 
         end_date = kwargs.pop("end_date", None)
         self._end_date = to_date(end_date) if end_date else None
@@ -351,36 +364,38 @@ class Security(object):
         self._display_name = kwargs.pop("display_name", None)
         self._parent = kwargs.pop("parent", None)
 
+        self._sid, self._exchange = self._code.rsplit('.', 1)
+        self._exchange_name = self._EXCHANGE_MAPPING.get(self._exchange)
+
         self._extra = kwargs
 
     def __repr__(self):
-        return "{}(code='{}', type='{}', start_date='{}')".format(
-            self.__class__.__name__, self._code, self._type, self._start_date
+        return (
+            "{}(code='{}', type='{}', start_date='{}', end_date='{}', "
+            "display_name='{}')"
+        ).format(
+            self.__class__.__name__, self._code, self._type,
+            self._start_date, self._end_date,
+            self._display_name
         )
+
+    def __str__(self):
+        return self._code
 
     @property
     def code(self):
-        """证券代码
-
-        一个字符串类型，如 000001.XSHE，其中后缀含义：
-            'XSHG'：上交所
-            'XSHE'：深交所
-            'CCFX'：中国金融期货交易所
-            'XSGE'：上海期货交易所
-            'XDCE'：郑州商品交易所
-            'XZCE'：大连商品交易所
-            'XINE': 上海能源期货交易所
-            'OF': 场外基金
-        """
+        """证券代码，带交易所后缀，如 000001.XSHE"""
         return self._code
 
     @property
     def symbol(self):
+        """证券代码，同 code 字段"""
         return self._code
 
     @property
-    def id(self):
-        return self._code
+    def sid(self):
+        """证券 ID，不带交易所后缀的证券代码"""
+        return self._sid
 
     @property
     def start_date(self):
@@ -416,6 +431,16 @@ class Security(object):
         return self._parent
 
     @property
+    def exchange(self):
+        """交易所英文简称"""
+        return self._exchange
+
+    @property
+    def exchange_name(self):
+        """交易所中文全称"""
+        return self._exchange_name
+
+    @property
     def extra(self):
         """其他信息"""
         self._extra
@@ -428,6 +453,9 @@ class Security(object):
             "type": self._type,
             "name": self._name,
             "display_name": self._display_name,
+            "security_id": self._sid,
+            "exchange": self._exchange,
+            "exchange_name": self._exchange_name,
             "parent": self._parent,
         }
         if self._extra:
