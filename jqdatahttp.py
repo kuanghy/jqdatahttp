@@ -24,7 +24,7 @@ except ImportError:
     from StringIO import StringIO
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 class JQDataError(Exception):
@@ -83,11 +83,13 @@ class JQDataApi(object):
             resp_body = resp.read()
             resp_data = resp_body.decode(self._encoding)
             if resp_data.startswith("error:"):
-                raise JQDataError(resp_data.replace("error:", "").strip())
+                err_msg = resp_data.replace("error:", "").strip()
+                if re.search(self._INVALID_TOKEN_PATTERN, err_msg):
+                    raise InvalidTokenError(err_msg)
+                else:
+                    raise JQDataError(err_msg)
             if resp.status != 200:
                 raise JQDataError(resp_data)
-        if re.search(self._INVALID_TOKEN_PATTERN, resp_data):
-            raise InvalidTokenError(resp_data)
         return resp_data
 
     def _request_data(self, method, **kwargs):
