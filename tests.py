@@ -17,3 +17,13 @@ def test_dataapi():
 
     data = api.get_security_info(code="000001.XSHE")
     print(data)
+
+
+def test_get_factor_values():
+    data = jqdatahttp.get_factor_values(
+        '000001.XSHE,600519.XSHG',
+        'net_profit_ratio,cfo_to_ev,size,EMA5,EMAC10',
+        '2021-02-01',
+        '2021-03-03'
+    )
+    print(data)

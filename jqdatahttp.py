@@ -96,7 +96,7 @@ class JQDataApi(object):
         req_data = {"method": method}
         if method not in {"get_token", "get_current_token"}:
             if not self.token:
-                self.get_token()
+                self.get_current_token()
             req_data["token"] = self.token
         req_data.update({
             key: val for key, val in kwargs.items() if val is not None
@@ -798,16 +798,48 @@ def get_baidu_factor(category=None, day=None, stock=None, province=None):
     stock = normal_security_code(stock)
 
 
-def get_factor_values(securities, factors, start_date=None, end_date=None, count=None):
-    """获取因子数据"""
+def get_all_factors():
+    """获取聚宽因子库中所有的因子信息"""
+    return _csv2df(api.get_all_factors())
 
-    securities = convert_security(securities)
+
+def get_factor_values(securities, factors=None, start_date=None, end_date=None, count=None):
+    """获取因子数据"""
+    assert not count, "咱不支持 count 参数"
+
+    securities = _convert_security(securities)
+
+    if factors is None:
+        factors = ['VEMA5']
+    elif is_string_types(factors):
+        factors = factors.strip().split(',') if ',' in factors else [factors]
+    if not isinstance(factors, (tuple, list, set)):
+        raise Exception("Parameter 'factors' type error")
+
     start_date = to_date(start_date)
     end_date = to_date(end_date)
-    if (not count) and (not start_date):
-        start_date = "2015-01-01"
-    if count and start_date:
-        raise ParamsError("(start_date, count) only one param is required")
+
+    factors_str = ','.join(factors)
+    dfs = []
+    for code in securities:
+        data = api.get_factor_values(
+            code=code,
+            date=start_date,
+            end_date=end_date,
+            columns=factors_str,
+        )
+        df = _csv2df(data)
+        df["code"] = code
+        dfs.append(df)
+
+    all_data = pd.concat(dfs)
+    data_dict = {}
+    for factor in factors:
+        pretty_data = all_data.pivot(
+            index='date', columns='code', values=factor
+        )
+        data_dict[factor] = pretty_data.astype("float64").fillna(np.nan)
+    return data_dict
 
 
 def get_index_weights(index_id, date=None):
@@ -838,10 +870,6 @@ def get_factor_effect(security, start_date, end_date, period, factor, group_num=
     assert group_num > 0, "group_num must be a positive numbe"
     assert isinstance(security, six.string_types), "security must be a inde code"
     assert period[-1] in ["D", "W", "M"], "period must be end with one of (\"D\", \"W\", \"M\")"
-
-
-def get_all_factors():
-    return _csv2df(api.get_all_factors())
 
 
 def get_call_auction(security, start_date=None, end_date=None, fields=None):
