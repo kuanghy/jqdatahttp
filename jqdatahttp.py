@@ -53,7 +53,8 @@ class JQDataApi(object):
         self._encoding = "UTF-8"
 
     _INVALID_TOKEN_PATTERN = re.compile(
-        r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)'
+        r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)|'
+        r'(auth\s+failed.*认证失败)'
     )
 
     @property
@@ -104,7 +105,7 @@ class JQDataApi(object):
         try:
             resp_data = self._request(req_data)
         except InvalidTokenError:
-            req_data["token"] = self.get_token()
+            req_data["token"] = self.get_current_token()
             resp_data = self._request(req_data)
         return resp_data
 
@@ -189,6 +190,7 @@ def auth(username, password, url=None):
 
 def logout():
     """退出账号"""
+    api.logout()
 
 
 def get_token(username=None, password=None):
@@ -197,6 +199,11 @@ def get_token(username=None, password=None):
         return api.get_token(mob=username, pwd=password)
     else:
         return api.token
+
+
+def reset_token():
+    """重置 Token，主要用于 Token 失效的情况"""
+    return api.get_token()
 
 
 def get_query_count(field=None):
@@ -558,16 +565,16 @@ def _convert_security(security):
 
 
 _bar_data_dtype = [
-    ("date", "U30"), ("open", "<f8"), ("close", "<f8"), ("high", "<f8"),
-    ("low", "<f8"), ("volume", "<i8"), ("money", "<f8"), ("paused", "<i1"),
+    ("date", "<U26"), ("open", "<f8"), ("close", "<f8"), ("high", "<f8"),
+    ("low", "<f8"), ("volume", "<f8"), ("money", "<f8"), ("paused", "<i1"),
     ("high_limit", "<f8"), ("low_limit", "<f8"), ("avg", "<f8"),
     ("pre_close", "<f8")
 ]
 
 
 _tick_data_dtype = [
-    ('time', '<i8'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
-    ('volume', '<i8'), ('money', '<f8'),
+    ('time', '<U26'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
+    ('volume', '<f8'), ('money', '<f8'),
     ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
     ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
     ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
@@ -575,8 +582,8 @@ _tick_data_dtype = [
 ]
 
 _tick_data_dtype2 = [
-    ('time', '<i8'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
-    ('volume', '<i8'), ('money', '<f8'), ('position', '<f8'),
+    ('time', '<U26'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
+    ('volume', '<f8'), ('money', '<f8'), ('position', '<f8'),
     ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
     ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
     ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
