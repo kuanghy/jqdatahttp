@@ -289,7 +289,9 @@ def _date2dt(date):
 
 def to_date(date):
     """转化为 datetime.date 类型"""
-    if is_string_types(date):
+    if not date:
+        return date
+    elif is_string_types(date):
         if ':' in date:
             date = date[:10]
         try:
@@ -306,7 +308,9 @@ def to_date(date):
 
 def to_datetime(dt):
     """转化为 datetime.datetime 类型"""
-    if is_string_types(dt):
+    if not dt:
+        return dt
+    elif is_string_types(dt):
         try:
             return datetime.datetime(*map(int, re.split(r"\W+", dt)))
         except Exception:
@@ -511,24 +515,16 @@ def get_all_trade_days():
 
 def get_trade_days(start_date=None, end_date=None, count=None):
     """获取指定日期范围内的所有交易日"""
-    if start_date and count:
-        raise ParamsError("start_date 参数与 count 参数只能二选一")
-    if not (count is None or count > 0):
-        raise ParamsError("count 参数需要大于 0 或者为 None")
-
-    end_date = to_date(end_date) if end_date else datetime.date.today()
+    start_date = to_date(start_date)
+    end_date = to_date(end_date)
 
     dates = get_all_trade_days()
 
     if not any([start_date, end_date, count]):
         return dates
 
-    if start_date:
-        start_date = to_date(start_date)
-        start_idx = dates.searchsorted(start_date)
-    else:
-        start_idx = 0
-    end_idx = dates.searchsorted(end_date, side='right')
+    start_idx = dates.searchsorted(start_date) if start_date else 0
+    end_idx = dates.searchsorted(end_date, side='right') if end_date else -1
 
     if not count and all([start_date, end_date]):
         return dates[start_idx:end_idx]
@@ -815,8 +811,6 @@ def get_all_factors():
 
 def get_factor_values(securities, factors=None, start_date=None, end_date=None, count=None):
     """获取因子数据"""
-    assert not count, "咱不支持 count 参数"
-
     securities = _convert_security(securities)
 
     if factors is None:
@@ -828,6 +822,14 @@ def get_factor_values(securities, factors=None, start_date=None, end_date=None, 
 
     start_date = to_date(start_date)
     end_date = to_date(end_date)
+
+    if count:
+        dates = get_trade_days(start_date, end_date, count)
+        start_date, end_date = dates[0], dates[-1]
+    elif start_date and not end_date:
+        end_date = datetime.date.today()
+    elif not start_date and end_date:
+        start_date = datetime.date(2005, 1, 1)
 
     factors_str = ','.join(factors)
     dfs = []
