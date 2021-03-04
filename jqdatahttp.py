@@ -301,7 +301,7 @@ def to_date(date):
     elif isinstance(date, datetime.date):
         return date
     raise ValueError("date must be datetime.date, datetime.datetime, "
-                     "pandas.Timestamp or as '2015-01-05'")
+                     "pandas.Timestamp or like '2015-01-05'")
 
 
 def to_datetime(dt):
@@ -315,7 +315,7 @@ def to_datetime(dt):
         return dt
     elif isinstance(dt, datetime.date):
         return _date2dt(dt)
-    raise ValueError("dt must be datetime.date, datetime.datetime or as "
+    raise ValueError("dt must be datetime.date, datetime.datetime or like "
                      "'2015-01-05 12:00:00'")
 
 
@@ -505,7 +505,7 @@ def get_all_securities(types=[], date=None):
 
 def get_all_trade_days():
     """获取所有交易日"""
-    data = _csv2array(api.get_all_trade_days())
+    data = _csv2array(api.get_all_trade_days(), dtype="<U16")
     return _array2date(data)
 
 
@@ -519,6 +519,9 @@ def get_trade_days(start_date=None, end_date=None, count=None):
     end_date = to_date(end_date) if end_date else datetime.date.today()
 
     dates = get_all_trade_days()
+
+    if not any([start_date, end_date, count]):
+        return dates
 
     if start_date:
         start_date = to_date(start_date)
