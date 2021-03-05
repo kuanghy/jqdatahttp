@@ -12,6 +12,7 @@ import json
 import datetime
 import functools
 from types import ModuleType
+from collections import OrderedDict
 
 try:
     from urllib.request import urlopen, Request as HTTPRequest
@@ -279,7 +280,10 @@ def _csv2df(data, dtype=None):
         return np.DataFrame()
     if dtype and not isinstance(dtype, np.dtype):
         dtype = np.dtype(dtype)
-    return pd.read_csv(StringIO(data), dtype=dtype)
+    try:
+        return pd.read_csv(StringIO(data), dtype=dtype)
+    except Exception:
+        return pd.read_csv(StringIO(data))
 
 
 def _date2dt(date):
@@ -563,31 +567,21 @@ def _convert_security(security):
         raise ParamsError("security type should be Security or list")
 
 
-_bar_data_dtype = [
-    ("date", "<U26"), ("open", "<f8"), ("close", "<f8"), ("high", "<f8"),
-    ("low", "<f8"), ("volume", "<f8"), ("money", "<f8"), ("paused", "<i1"),
-    ("high_limit", "<f8"), ("low_limit", "<f8"), ("avg", "<f8"),
-    ("pre_close", "<f8")
-]
+_bar_data_dtypes = OrderedDict([
+    ('date', '<U26'), ('open', '<f8'), ('close', '<f8'),
+    ('high', '<f8'), ('low', '<f8'), ('volume', '<f8'), ('money', '<f8'),
+    ('paused', '<i1'), ('high_limit', '<f8'), ('low_limit', '<f8'),
+    ('avg', '<f8'), ('pre_close', '<f8'), ('open_interest', '<f8'),
+])
 
-
-_tick_data_dtype = [
-    ('time', '<U26'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
-    ('volume', '<f8'), ('money', '<f8'),
-    ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
-    ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
-    ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
-    ('b1_p', '<f8'), ('b2_p', '<f8'), ('b3_p', '<f8'), ('b4_p', '<f8'), ('b5_p', '<f8'),
-]
-
-_tick_data_dtype2 = [
+_tick_data_dtypes = OrderedDict([
     ('time', '<U26'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
     ('volume', '<f8'), ('money', '<f8'), ('position', '<f8'),
     ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
     ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
     ('b1_v', '<f8'), ('b2_v', '<f8'), ('b3_v', '<f8'), ('b4_v', '<f8'), ('b5_v', '<f8'),
     ('b1_p', '<f8'), ('b2_p', '<f8'), ('b3_p', '<f8'), ('b4_p', '<f8'), ('b5_p', '<f8'),
-]
+])
 
 
 def get_price(security, start_date=None, end_date=None, frequency='1d',
@@ -640,7 +634,11 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
             end_date=end_dt,
             fq_ref_date=fq_ref_date,
         )
-        bars = _csv2array(data, dtype=_bar_data_dtype, skip_header=1)
+        header = [
+            item.strip() for item in data.split('\n', 1)[0].split(',') if item
+        ]
+        dtype = [(col, _bar_data_dtypes[col]) for col in header]
+        bars = _csv2array(data, dtype=dtype, skip_header=1)
         bars["date"] = _array2datetime(bars["date"])
         bars_mapping[code] = bars[fields] if fields else bars
 
@@ -663,13 +661,14 @@ def get_current_tick(security):
     """获取最新的 tick 数据"""
     if isinstance(security, Security):
         security = security.code
-    return _csv2df(api.get_current_tick(code=security), dtype=_tick_data_dtype)
+    dtype = list(_tick_data_dtypes.items())
+    return _csv2df(api.get_current_tick(code=security), dtype=dtype)
 
 
 def get_current_ticks(security):
     """获取多标的最新的 tick 数据"""
     security = _convert_security(security)
-    dtype = [("code", "U30")] + _tick_data_dtype
+    dtype = [("code", "U30")] + list(_tick_data_dtypes.items())
     return _csv2df(api.get_current_ticks(code=",".join(security)), dtype=dtype)
 
 
@@ -690,7 +689,11 @@ def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, ski
     ticks_mapping = {}
     for code in security:
         data = get_data(code=code)
-        ticks = _csv2array(data, dtype=_tick_data_dtype, skip_header=1)
+        header = [
+            item.strip() for item in data.split('\n', 1)[0].split(',') if item
+        ]
+        dtype = [(col, _tick_data_dtypes[col]) for col in header]
+        ticks = _csv2array(data, dtype=dtype, skip_header=1)
         ticks_mapping[code] = ticks[fields] if fields else ticks
 
     if df:
