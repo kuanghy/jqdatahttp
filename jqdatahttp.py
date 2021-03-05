@@ -492,7 +492,9 @@ def get_security_info(code, date=None):
 
 def get_all_securities(types=[], date=None):
     """获取平台支持的所有股票、基金、指数、期货信息"""
-    if is_string_types(types):
+    if not types:
+        types = ["stock"]
+    elif is_string_types(types):
         types = [types]
     if date:
         date = to_date(date)
