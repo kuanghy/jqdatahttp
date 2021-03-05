@@ -25,7 +25,7 @@ except ImportError:
     from StringIO import StringIO
 
 
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 
 
 class JQDataError(Exception):
@@ -135,7 +135,7 @@ class JQDataApi(object):
     def auth(self, username=None, password=None, url=None):
         if url:
             self.url = url
-        self.get_token(mob=username, pwd=password)
+        self.get_current_token(mob=username, pwd=password)
 
     def logout(self):
         self._username = None
