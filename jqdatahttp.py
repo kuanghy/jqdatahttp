@@ -16,8 +16,9 @@ from collections import OrderedDict
 
 try:
     from urllib.request import urlopen, Request as HTTPRequest
+    from urllib.error import HTTPError
 except ImportError:
-    from urllib2 import urlopen, Request as HTTPRequest
+    from urllib2 import urlopen, Request as HTTPRequest, HTTPError
 
 try:
     from io import StringIO
@@ -44,13 +45,13 @@ class JQDataApi(object):
 
     _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
 
-    def __init__(self, username=None, password=None, url=None):
+    def __init__(self, username=None, password=None, url=None, timeout=20):
         self._username = username
         self._password = password
         self.url = url or self._DEFAULT_URL
+        self.timeout = timeout
 
         self.token = None
-        self.timeout = 10
         self._encoding = "UTF-8"
 
     _INVALID_TOKEN_PATTERN = re.compile(
@@ -81,7 +82,19 @@ class JQDataApi(object):
     def _request(self, data):
         req_body = self._json_dumps(data).encode(self._encoding)
         req = HTTPRequest(self.url, data=req_body, method="POST")
-        with urlopen(req, timeout=self.timeout) as resp:
+        try:
+            resp = urlopen(req, timeout=self.timeout)
+        except HTTPError as ex:
+            if ex.code == 504:
+                err_msg = "请求超时，服务器繁忙，请稍后重试或减少查询条数"
+                raise JQDataError(err_msg)
+            elif ex.code == 500:
+                err_msg = ("请求频率过高，每个账号每分钟最多允许请求 1800 次，"
+                           "请稍后再试")
+                raise JQDataError(err_msg)
+            else:
+                raise
+        with resp:
             resp_body = resp.read()
             resp_data = resp_body.decode(self._encoding)
             if resp_data.startswith("error:"):
@@ -211,6 +224,11 @@ def get_query_count(field=None):
     """查询当日可请求条数/剩余请求条数"""
     assert field in ["total", "spare", None], "field 参数必须为 total, spare, None 中的一个"
     return int(api.get_query_count())
+
+
+def settimeout(value):
+    """设置请求超时时间"""
+    api.timeout = value
 
 
 class _LazyModuleType(ModuleType):

@@ -5,6 +5,7 @@ JQDataHTTP
 
 ```python
 >>> import jqdatahttp
+>>> jqdatahttp.settimeout(10)
 >>> jqdatahttp.auth('xxxxxxxxxxx', 'xxxxxx')
 >>> jqdatahttp.get_security_info('000001.XSHE')
 Security(code='000001.XSHE', type='stock', start_date='1991-04-03', end_date='2200-01-01', display_name='平安银行')
@@ -51,8 +52,16 @@ reset_token()
 - **查询当日剩余请求条数**
 
 ```python
-get_query_count():
+get_query_count()
 ```
+
+- **设置请求超时时间**
+
+```python
+settimeout(value)
+```
+
+默认超时时间为 20 秒
 
 ## 原生接口
 
