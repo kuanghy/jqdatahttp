@@ -640,6 +640,7 @@ def get_price(security, start_date=None, end_date=None, frequency='1d',
 def get_bars(security, count, unit="1d", fields=None, include_now=False,
              end_dt=None, fq_ref_date=None, df=True):
     """获取历史数据(包含快照数据), 可查询单个标的多个数据字段"""
+    is_list_security = isinstance(security, (tuple, list, set)) or ',' in security
     security = _convert_security(security)
     assert count > 0
     if end_dt:
@@ -666,13 +667,21 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
         bars_mapping[code] = bars[fields] if fields else bars
 
     if df:
-        dfs = []
-        for code, arr in bars_mapping.items():
-            index = [[code] * arr.size, list(range(arr.size))]
-            dfs.append(pd.DataFrame(data=arr, index=index))
-        return pd.concat(dfs, copy=False)
+        if is_list_security:
+            dfs = []
+            for code, arr in bars_mapping.items():
+                index = [[code] * arr.size, list(range(arr.size))]
+                dfs.append(pd.DataFrame(data=arr, index=index))
+            return pd.concat(dfs, copy=False)
+        else:
+            _, arr = bars_mapping.popitem()
+            return pd.DataFrame(data=arr)
     else:
-        return bars_mapping
+        if is_list_security:
+            return bars_mapping
+        else:
+            _, arr = bars_mapping.popitem()
+            return arr
 
 
 def get_last_price(codes):
@@ -697,7 +706,7 @@ def get_current_ticks(security):
 
 def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=False):
     """获取 Tick 数据"""
-    is_list_security = isinstance(security, (tuple, list, set))
+    is_list_security = isinstance(security, (tuple, list, set)) or ',' in security
     security = _convert_security(security)
     end_dt = to_datetime(end_dt) if end_dt else datetime.datetime.now()
     if start_dt and count:
