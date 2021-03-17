@@ -54,6 +54,10 @@ class JQDataApi(object):
         self.token = None
         self._encoding = "UTF-8"
 
+        self.show_request_params = False  # 显示请求参数
+        self.show_raw_result = False      # 显示原始的返回结果
+        self.auto_format_result = False   # 自动格式化返回结果
+
     _INVALID_TOKEN_PATTERN = re.compile(
         r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)|'
         r'(auth\s+failed.*认证失败)'
@@ -67,21 +71,14 @@ class JQDataApi(object):
     def password(self):
         return self._password or os.getenv("JQDATA_PASSWORD")
 
-    @staticmethod
-    def _json_serial_fallback(obj):
-        if isinstance(obj, datetime.date):
-            return obj.strftime('%Y-%m-%d')
-        if isinstance(obj, datetime.datetime):
-            return obj.strftime('%Y-%m-%d %H:%M:%S')
-        raise TypeError("%s not serializable" % obj)
-
-    @classmethod
-    def _json_dumps(cls, obj, **kwargs):
-        return json.dumps(obj, default=cls._json_serial_fallback, **kwargs)
-
-    def _request(self, data):
-        req_body = self._json_dumps(data).encode(self._encoding)
-        req = HTTPRequest(self.url, data=req_body, method="POST")
+    def _request(self, data, show_request_body=False):
+        req_body = json.dumps(data, default=str)
+        if show_request_body:
+            print("start show request body", "-" * 20)
+            print(req_body)
+            print("end show request body", "-" * 20)
+        data = req_body.encode(self._encoding)
+        req = HTTPRequest(self.url, data=data, method="POST")
         try:
             resp = urlopen(req, timeout=self.timeout)
         except HTTPError as ex:
@@ -113,14 +110,19 @@ class JQDataApi(object):
             if not self.token:
                 self.get_current_token()
             req_data["token"] = self.token
+        show_request_params = kwargs.pop("show_request_params", False)
+        request = functools.partial(
+            self._request,
+            show_request_body=(show_request_params or self.show_request_params)
+        )
         req_data.update({
             key: val for key, val in kwargs.items() if val is not None
         })
         try:
-            resp_data = self._request(req_data)
+            resp_data = request(req_data)
         except InvalidTokenError:
             req_data["token"] = self.get_current_token()
-            resp_data = self._request(req_data)
+            resp_data = request(req_data)
         return resp_data
 
     def get_token(self, mob=None, pwd=None):
@@ -159,14 +161,14 @@ class JQDataApi(object):
         if name.startswith("get_") or name == "run_query":
 
             def wrapper(self, **kwargs):
-                auto_format_result = kwargs.pop("auto_format_result", False)
                 show_raw_result = kwargs.pop("show_raw_result", False)
+                auto_format_result = kwargs.pop("auto_format_result", False)
                 data = self._request_data(name, **kwargs)
-                if show_raw_result:
+                if show_raw_result or self.show_raw_result:
                     print("start show raw result", "-" * 20)
                     print(data)
                     print("end show raw result", "-" * 20)
-                if not auto_format_result:
+                if not auto_format_result and not self.auto_format_result:
                     return data
 
                 if name in {"get_query_count"}:
@@ -641,7 +643,8 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
     security = _convert_security(security)
     assert count > 0
     if end_dt:
-        end_dt = to_datetime(end_dt)
+        # end_dt = to_datetime(end_dt)
+        end_dt = to_date(end_dt)  # HTTP 版只支持 date 参数
     if fq_ref_date:
         fq_ref_date = to_date(fq_ref_date)
 
