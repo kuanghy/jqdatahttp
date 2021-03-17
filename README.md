@@ -83,10 +83,21 @@ code,display_name,name,start_date,end_date,type,parent
 }
 ```
 
-则 jqdattahttp.api.get_security_info 则只需提供 code 关键参数。此外，还支持提供两个额外的参数：
+则 jqdattahttp.api.get_security_info 则只需提供 code 关键参数。
 
-- `auto_format_result`: 该参数为 True 时，会更新接口返回内容将结果格式化为 pandas.DataFrame 或者 list 等结构
+此外，还支持提供两个额外的参数：
+
+- `show_request_params`: 参数为 True 会将请求时的详细参数打印出来
 - `show_raw_result`: 该参数为 True 会将原始数据打印
+- `auto_format_result`: 该参数为 True 时，会更新接口返回内容将结果格式化为 pandas.DataFrame 或者 list 等结构
+
+这些额外参数也支持在全局设置：
+
+```
+jqdatahttp.api.show_request_params = True  # 显示请求参数
+jqdatahttp.api.show_raw_result = True      # 显示原始的返回结果
+jqdatahttp.api.auto_format_result = True   # 自动格式化返回结果
+```
 
 示例：
 
@@ -98,6 +109,13 @@ code,display_name,name,start_date,end_date,type,parent
 end show raw result --------------------
           code display_name  name  start_date    end_date   type  parent
 0  000001.XSHE         平安银行  PAYH  1991-04-03  2200-01-01  stock     NaN
+
+>>> jqdatahttp.api.show_request_params = True
+>>> jqdatahttp.get_security_info('000001.XSHE')
+start show request body --------------------
+{"method": "get_security_info", "token": "586a9ba7b0f572bb6c2b782802c408", "code": "000001.XSHE"}
+end show request body --------------------
+Security(code='000001.XSHE', type='stock', start_date='1991-04-03', end_date='2200-01-01', display_name='平安银行')
 ```
 
 ## JQDataSDK 兼容接口

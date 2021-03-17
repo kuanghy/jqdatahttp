@@ -54,9 +54,9 @@ class JQDataApi(object):
         self.token = None
         self._encoding = "UTF-8"
 
-        self.show_request_params = False  # 显示请求参数
-        self.show_raw_result = False      # 显示原始的返回结果
-        self.auto_format_result = False   # 自动格式化返回结果
+        self.show_request_params = False  # 是否显示请求参数
+        self.show_raw_result = False      # 是否显示原始的返回结果
+        self.auto_format_result = False   # 是否自动格式化返回结果
 
     _INVALID_TOKEN_PATTERN = re.compile(
         r'(invalid\s+token)|(token\s+expired)|(token.*无效)|(token.*过期)|'
