@@ -675,7 +675,7 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
             return pd.concat(dfs, copy=False)
         else:
             _, arr = bars_mapping.popitem()
-            return pd.DataFrame(data=arr)
+            return pd.DataFrame(data=arr, index=range(arr.size))
     else:
         if is_list_security:
             return bars_mapping
