@@ -565,11 +565,45 @@ def get_trade_days(start_date=None, end_date=None, count=None):
     raise ParamsError("start_date 参数与 count 参数必须输入一个")
 
 
+def _normalize_stock_code(code):
+    """归一化股票代码
+
+    上海证券交易所证券代码分配规则
+    https://biz.sse.com.cn/cs/zhs/xxfw/flgz/rules/sserules/sseruler20090810a.pdf
+
+    深圳证券交易所证券代码分配规则
+    http://www.szse.cn/main/rule/bsywgz/39744233.shtml
+    """
+    if isinstance(code, int):
+        suffix = 'XSHG' if code >= 500000 else 'XSHE'
+        return '%06d.%s' % (code, suffix)
+    elif is_string_types(code):
+        code = code.upper()
+        if code[-5:] in ('.XSHG', '.XSHE', '.CCFX'):
+            return code
+        suffix = None
+        match = re.search(r'[0-9]{6}', code)
+        if match is None:
+            raise ParamsError("wrong code={}".format(code))
+        number = match.group(0)
+        if 'SH' in code:
+            suffix = 'XSHG'
+        elif 'SZ' in code:
+            suffix = 'XSHE'
+
+        if suffix is None:
+            suffix = 'XSHG' if int(number) >= 500000 else 'XSHE'
+        return '%s.%s' % (number, suffix)
+    else:
+        raise ParamsError(u"normalize_code(code=%s) 的参数必须是字符串或者整数" % code)
+
+
 def normalize_code(code):
     """归一化证券代码
 
-    如将证券代码 000001 转化为全称 000001.XSHE
+    如将证券代码 000001 转化为全称 000001.XSHE，仅支持股票
     """
+    return _normalize_stock_code(code)
 
 
 def _convert_security(security):
@@ -684,11 +718,6 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
             return arr
 
 
-def get_last_price(codes):
-    """获取标的的最新价格"""
-    codes = convert_security(codes)
-
-
 def get_current_tick(security):
     """获取最新的 tick 数据"""
     if isinstance(security, Security):
@@ -702,6 +731,14 @@ def get_current_ticks(security):
     security = _convert_security(security)
     dtype = [("code", "U30")] + list(_tick_data_dtypes.items())
     return _csv2df(api.get_current_ticks(code=",".join(security)), dtype=dtype)
+
+
+def get_last_price(codes):
+    """获取标的的最新价格"""
+    data = get_current_ticks(codes)
+    if data.empty:
+        return {}
+    return {row.code: row.current for _, row in data.iterrows()}
 
 
 def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=False):

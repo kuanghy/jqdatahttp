@@ -70,3 +70,7 @@ def test_get_factor_values():
         '2021-03-03'
     )
     print(data)
+
+
+def test_get_last_price():
+    jqdatahttp.get_last_price(['000001.XSHE', '600000.XSHG'])
