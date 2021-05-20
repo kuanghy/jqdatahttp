@@ -38,6 +38,10 @@ class TestJQDataApi(object):
         data = api.get_index_stocks(code="000300.XSHG", date="2019-01-09")
         print(data)
 
+        data = api.get_fundamentals(code='605388.XSHG', date='2020-08-18',
+                                    count=10, table='valuation')
+        print(data)
+
 
 def test_get_bars():
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
@@ -52,7 +56,7 @@ def test_get_bars():
                                count=20, unit='1m')
     print(data)
     assert allclose(data.iloc[-2, 1:], [
-        2357.0, 2356.0, 2358.0, 2354.0, 5193.0, 122087430.0, 768179.0
+        2352.0, 2351.0, 2353.0, 2351.0, 2604.0, 61272120.0, 691364.0
     ])
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
                                count=30, unit='1M')
