@@ -780,65 +780,140 @@ def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, ski
 
 
 def get_extras(info, security_list, start_date=None, end_date=None, df=True, count=None):
-    """获取多只标的在一段时间的如下额外的数据"""
+    """获取多只标的在一段时间的如下额外的数据
+
+    is_st: 是否是ST，是则返回 True，否则返回 False
+    acc_net_value: 基金累计净值
+    unit_net_value: 基金单位净值
+    futures_sett_price: 期货结算价
+    futures_positions: 期货持仓量
+    adj_net_value: 场外基金的复权净值
+    """
+    allowable_infos = [
+        'is_st', 'acc_net_value', 'unit_net_value', 'futures_sett_price',
+        'futures_positions', 'adj_net_value'
+    ]
+    assert info in allowable_infos, "info 必须是 {} 中的一个".format(allowable_infos)
     assert security_list, "security_list is required"
+    security_list = _convert_security(security_list)
     start_date = to_date(start_date)
     end_date = to_date(end_date)
-    security_list = convert_security(security_list)
+    if count:
+        trade_days = get_trade_days(start_date, end_date, count)
+        start_date, end_date = trade_days[0], trade_days[-1]
+    info_mapping = {}
+    for security in security_list:
+        data = api.get_extras(code=security, date=start_date, end_date=end_date)
+        data = _csv2df(data).set_index('date')
+        if info == "is_st":
+            data.replace({0: False, 1: True}, inplace=True)
+        info_mapping[security] = data[info]
+    if df:
+        return pd.DataFrame(info_mapping)
+    else:
+        return {
+            security: series.values for security, series in info_mapping.items()
+        }
 
 
 def get_fundamentals(query_object, date=None, statDate=None):
     """查询财务数据"""
-    pass
+    raise NotImplementedError()
 
 
 def get_billboard_list(stock_list=None, start_date=None, end_date=None, count=None):
     """获取指定日期区间内的龙虎榜数据"""
-    pass
+    trade_days = get_trade_days(start_date, end_date, count)
+    df_list = []
+    if stock_list:
+        stock_list = _convert_security(stock_list)
+        start_date, end_date = trade_days[0], trade_days[-1]
+        if start_date == end_date:
+            end_date = None
+        for stock in stock_list:
+            data = api.get_billboard_list(
+                code=stock, date=start_date, end_date=end_date
+            )
+            df = _csv2df(data)
+            df_list.append(df)
+    else:
+        for date in trade_days:
+            for stock in get_all_securities("stock", date).index:
+                data = api.get_billboard_list(code=stock, date=date)
+                df = _csv2df(data)
+                df_list.append(df)
+    return pd.concat(df_list)
 
 
 def get_locked_shares(stock_list=None, start_date=None, end_date=None, forward_count=None):
-    """ 获取指定日期区间内的限售解禁数据"""
+    """获取指定日期区间内的限售解禁数据"""
     pass
 
 
 def get_index_stocks(index_symbol, date=None):
     """获取一个指数给定日期在平台可交易的成分股列表"""
-    pass
+    data = api.get_index_stocks(code=index_symbol, date=date)
+    return _csv2list(data) if data else []
 
 
 def get_industry_stocks(industry_code, date=None):
     """获取在给定日期一个行业的所有股票"""
-    pass
+    data = api.get_industry_stocks(code=industry_code, date=date)
+    return _csv2list(data) if data else []
 
 
 def get_industries(name='zjw', date=None):
     """按照行业分类获取行业列表"""
-    pass
+    data = api.get_industries(code=name)
+    data = _csv2df(data).set_index('index')
+    data["start_date"] = pd.to_datetime(data.start_date)
+    if date:
+        dt = to_datetime(date)
+        data = data[data.start_date >= dt]
+    return data
 
 
 def get_concept_stocks(concept_code, date=None):
     """获取在给定日期一个概念板块的所有股票"""
     assert concept_code, "concept_code is required"
     date = to_date(date)
+    data = api.get_concept_stocks(code=concept_code, date=date)
+    return _csv2list(data) if data else []
 
 
 def get_concepts():
     """获取概念板块"""
-    pass
+    data = api.get_concepts()
+    data = _csv2df(data).set_index('code')
+    data["start_date"] = pd.to_datetime(data.start_date)
+    return data
 
 
 def get_concept(security, date):
     """获取股票所属概念板块"""
-    date = to_date(date)
+    raise NotImplementedError()
 
 
 def get_money_flow(security_list, start_date=None, end_date=None, fields=None, count=None):
     """获取一只或者多只股票在一个时间段内的资金流向数据"""
     assert security_list, "security_list is required"
-    security_list = convert_security(security_list)
+    security_list = _convert_security(security_list)
     start_date = to_date(start_date)
     end_date = to_date(end_date)
+    if count:
+        trade_days = get_trade_days(start_date, end_date, count)
+        start_date, end_date = trade_days[0], trade_days[-1]
+    df_list = []
+    for security in security_list:
+        data = api.get_money_flow(code=security, date=start_date, end_date=end_date)
+        df = _csv2df(data)
+        df_list.append(df)
+    data = pd.concat(df_list)
+    if fields:
+        if is_string_types(fields):
+            fields = [fields]
+        data = data[fields]
+    return data
 
 
 def get_mtss(security_list, start_date=None, end_date=None, fields=None, count=None):
@@ -846,34 +921,51 @@ def get_mtss(security_list, start_date=None, end_date=None, fields=None, count=N
     assert (not start_date) ^ (not count), "(start_date, count) only one param is required"
     start_date = to_date(start_date)
     end_date = to_date(end_date)
-    security_list = convert_security(security_list)
+    security_list = _convert_security(security_list)
+    if count:
+        trade_days = get_trade_days(start_date, end_date, count)
+        start_date, end_date = trade_days[0], trade_days[-1]
+    df_list = []
+    for security in security_list:
+        data = api.get_mtss(code=security, date=start_date, end_date=end_date)
+        df = _csv2df(data)
+        df_list.append(df)
+    data = pd.concat(df_list)
+    if fields:
+        if is_string_types(fields):
+            fields = [fields]
+        data = data[fields]
+    return data
 
 
 def get_margincash_stocks(date=None):
     """返回上交所、深交所最近一次披露的的可融资标的列表"""
     date = to_date(date)
+    data = api.get_margincash_stocks(date=date)
+    return _csv2list(data) if data else []
 
 
 def get_marginsec_stocks(date=None):
     """返回上交所、深交所最近一次披露的的可融券标的列表"""
     date = to_date(date)
+    data = api.get_marginsec_stocks(date=date)
+    return _csv2list(data) if data else []
 
 
 def get_future_contracts(underlying_symbol, date=None):
     """获取某期货品种在策略当前日期的可交易合约标的列表"""
     assert underlying_symbol, "underlying_symbol is required"
-    dt = to_date(date)
+    date = to_date(date)
+    data = api.get_future_contracts(code=underlying_symbol, date=date)
+    return _csv2list(data) if data else []
 
 
 def get_dominant_future(underlying_symbol, date=None):
     """获取主力合约对应的标的"""
-    dt = to_date(date)
-
-
-def get_baidu_factor(category=None, day=None, stock=None, province=None):
-    """获取百度因子搜索量数据"""
-    day = to_date(day)
-    stock = normal_security_code(stock)
+    assert underlying_symbol, "underlying_symbol is required"
+    date = to_date(date)
+    data = api.get_dominant_future(code=underlying_symbol, date=date)
+    return data
 
 
 def get_all_factors():

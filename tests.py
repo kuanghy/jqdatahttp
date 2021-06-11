@@ -3,7 +3,6 @@
 # Copyright (c) Huoty, All rights reserved
 # Author: Huoty <sudohuoty@163.com>
 
-import math
 from math import isclose
 from itertools import zip_longest
 
@@ -75,6 +74,122 @@ def test_get_factor_values():
     )
     print(data)
 
+    df = data["net_profit_ratio"]
+    assert df.iloc[0, 0] > 0
+
 
 def test_get_last_price():
-    jqdatahttp.get_last_price(['000001.XSHE', '600000.XSHG'])
+    data = jqdatahttp.get_last_price(['000001.XSHE', '600000.XSHG'])
+    print(data)
+    assert sum(data.values())
+
+
+def test_get_extras():
+    data = jqdatahttp.get_extras(
+        'acc_net_value', ['510300.XSHG', '510050.XSHG'],
+        start_date='2015-12-01', end_date='2015-12-03'
+    )
+    print(data)
+    assert sum(data['510300.XSHG']) > 3
+
+    data = jqdatahttp.get_extras(
+        'is_st', ['000001.XSHE', '000018.XSHE'],
+        start_date='2013-12-01', end_date='2013-12-03'
+    )
+    print(data)
+    assert not any(data['000001.XSHE']) and all(data['000018.XSHE'])
+
+    data = jqdatahttp.get_extras(
+        'acc_net_value', ['510300.XSHG', '510050.XSHG'],
+        start_date='2015-12-01', end_date='2015-12-03', df=False
+    )
+    print(data)
+    assert isinstance(data, dict) and sum(data['510050.XSHG']) > 9
+
+
+def test_get_billboard_list():
+    data = jqdatahttp.get_billboard_list(
+        stock_list='000009.XSHE', end_date="2021-06-10", count=1
+    )
+    print(data)
+    assert len(data) > 1
+
+
+def test_get_index_stocks():
+    data = jqdatahttp.get_index_stocks('000300.XSHG')
+    print(data)
+    assert len(data)
+
+
+def test_get_industry_stocks():
+    data = jqdatahttp.get_industry_stocks('I64')
+    print(data)
+    assert len(data)
+
+
+def test_get_industries():
+    data = jqdatahttp.get_industries('zjw')
+    print(data)
+    assert len(data) > 0
+
+    data2 = jqdatahttp.get_industries('zjw', date="2021-06-10")
+    assert len(data) > len(data2)
+
+
+def test_get_concept_stocks():
+    print(jqdatahttp.get_concept_stocks('GN086'))
+    data = jqdatahttp.get_concept_stocks('GN036', date='2019-04-16')
+    print(data)
+    assert len(data) > 5
+
+
+def test_get_concepts():
+    data = jqdatahttp.get_concepts()
+    print(data)
+    assert len(data)
+
+
+def test_get_money_flow():
+    data = jqdatahttp.get_money_flow('000001.XSHE', '2016-02-01', '2016-03-01')
+    print(data)
+    assert len(data) > 10
+
+    data = jqdatahttp.get_money_flow(
+        ['000001.XSHE', '600000.XSHG'], '2010-01-01', '2010-01-30',
+        ["date", "sec_code", "change_pct", "net_amount_main", "net_pct_l", "net_amount_m"]
+    )
+    print(data)
+    assert "net_pct_m" not in data.columns
+
+
+def test_get_mtss():
+    data = jqdatahttp.get_mtss('000001.XSHE', '2016-01-01', '2016-04-01')
+    print(data)
+    assert len(data) > 0
+
+    data = jqdatahttp.get_mtss(
+        ['000001.XSHE', '600000.XSHG'], '2016-01-01', '2016-04-01',
+        fields="sec_sell_value"
+    )
+    print(data)
+    assert "date" not in data.columns
+
+
+def test_get_margincash_marginsec_stocks():
+    assert len(jqdatahttp.get_margincash_stocks()) > 0
+    assert len(jqdatahttp.get_marginsec_stocks()) > 0
+
+
+def test_get_future_contracts():
+    data = sorted(jqdatahttp.get_future_contracts('IF', date="2021-06-10"))
+    print(data)
+    assert data == ['IF2106.CCFX', 'IF2107.CCFX', 'IF2109.CCFX', 'IF2112.CCFX']
+
+
+def test_get_dominant_future():
+    assert jqdatahttp.get_dominant_future('IF', date="2021-06-10") == 'IF2106.CCFX'
+
+
+def test_get_index_weights():
+    # get_index_weights(index_id="000001.XSHG", date="2018-05-09")
+    pass
