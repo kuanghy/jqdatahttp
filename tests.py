@@ -120,6 +120,11 @@ def test_get_index_stocks():
     print(data)
     assert len(data)
 
+    # 测试在成分股切换时逻辑是否正常
+    stocks = jqdatahttp.get_index_stocks("000300.XSHG", date="2011-01-04")
+    stocks2 = jqdatahttp.get_index_stocks("000300.XSHG", date="2011-01-05")
+    assert len(stocks) == len(stocks2)
+
 
 def test_get_industry_stocks():
     data = jqdatahttp.get_industry_stocks('I64')

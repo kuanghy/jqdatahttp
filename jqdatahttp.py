@@ -48,7 +48,7 @@ class JQDataApi(object):
     def __init__(self, username=None, password=None, url=None, timeout=20):
         self._username = username
         self._password = password
-        self.url = url or self._DEFAULT_URL
+        self._url = url
         self.timeout = timeout
 
         self.token = None
@@ -70,6 +70,10 @@ class JQDataApi(object):
     @property
     def password(self):
         return self._password or os.getenv("JQDATA_PASSWORD")
+
+    @property
+    def url(self):
+        return self._url or os.getenv("JQDATA_URL") or self._DEFAULT_URL
 
     def _request(self, data, show_request_body=False):
         req_body = json.dumps(data, default=str)
