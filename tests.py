@@ -107,6 +107,13 @@ def test_get_extras():
     assert isinstance(data, dict) and sum(data['510050.XSHG']) > 9
 
 
+def test_get_fundamentals():
+    data = jqdatahttp.get_fundamentals(
+        code='000651.XSHE', date='2019q1', table='income', count=100
+    )
+    print(data)
+
+
 def test_get_billboard_list():
     data = jqdatahttp.get_billboard_list(
         stock_list='000009.XSHE', end_date="2021-06-10", count=1

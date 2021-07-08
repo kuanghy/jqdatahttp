@@ -820,9 +820,25 @@ def get_extras(info, security_list, start_date=None, end_date=None, df=True, cou
         }
 
 
-def get_fundamentals(query_object, date=None, statDate=None):
-    """查询财务数据"""
-    raise NotImplementedError()
+def get_fundamentals(code, date, table, count=None, columns=None):
+    """查询财务数据
+
+    参数：
+        code: 证券代码，支持多个标的
+        date: 查询日期 2019-03-04 或者年度 2018
+            或者季度 2018q1 2018q2 2018q3 2018q4
+        table: 要查询表名，可选项：
+            balance，income，cash_flow，indicator，valuation，bank_indicator，
+            security_indicator，insurance_indicator
+        count: 查询条数，最多查询 1000 条，count 个自然日之前的数据将被过滤掉
+            不填 count 时按 date 查询
+        columns: 需要查询的字段，为空时则查询所有字段
+    """
+    code_list = _convert_security(code)
+    data = api.get_fundamentals(
+        code=code_list, date=date, table=table, count=count, columns=columns
+    )
+    return _csv2df(data)
 
 
 def get_billboard_list(stock_list=None, start_date=None, end_date=None, count=None):
