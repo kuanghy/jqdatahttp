@@ -41,6 +41,15 @@ class TestJQDataApi(object):
                                     count=10, table='valuation')
         print(data)
 
+        data = api.get_price(code="300073.XSHE", unit='1m', count=100,
+                             end_date='2020-09-01')
+        print(data)
+
+        data = api.get_price_period(code="300073.XSHE", unit='1m',
+                                    date='2020-09-01',
+                                    end_date='2020-09-01 15:00:00')
+        print(data)
+
 
 def test_get_bars():
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
@@ -63,6 +72,15 @@ def test_get_bars():
     assert allclose(data.iloc[-1, 1:], [
         2466.0, 2356.0, 2682.0, 2288.0, 24901720.0, 617942268640.0
     ])
+
+
+def test_get_bars_period():
+    data = jqdatahttp.get_bars_period(
+        'SN2109.XSGE', '2021-07-06', '2021-07-06 15:30', unit='1m'
+    )
+    print(data)
+    data = data.drop('date', 1)
+    assert not (data < 0).any().any()
 
 
 def test_get_factor_values():

@@ -29,6 +29,48 @@ except ImportError:
 __version__ = '0.1.4'
 
 
+def is_string_types(obj):
+    if sys.version_info[0] < 3:
+        string_types = basestring
+    else:
+        string_types = str
+    return isinstance(obj, string_types)
+
+
+def is_text_type(obj):
+    if sys.version_info[0] < 3:
+        text_type = unicode
+    else:
+        text_type = str
+    return isinstance(obj, text_type)
+
+
+class _LazyModuleType(ModuleType):
+
+    @property
+    def _mod(self):
+        name = super(_LazyModuleType, self).__getattribute__("__name__")
+        if name not in sys.modules:
+            __import__(name)
+        return sys.modules[name]
+
+    def __getattribute__(self, name):
+        if name == "_mod":
+            return super(_LazyModuleType, self).__getattribute__(name)
+
+        try:
+            return self._mod.__getattribute__(name)
+        except AttributeError:
+            return super(_LazyModuleType, self).__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        self._mod.__setattr__(name, value)
+
+
+np = _LazyModuleType("numpy")
+pd = _LazyModuleType("pandas")
+
+
 class JQDataError(Exception):
     """错误基类"""
 
@@ -108,6 +150,16 @@ class JQDataApi(object):
                 raise JQDataError(resp_data)
         return resp_data
 
+    def __serialize_value(self, value):
+        if isinstance(value, (tuple, list, set)):
+            return ",".join(value)
+        if isinstance(value, datetime.date):
+            return str(value)
+        elif isinstance(value, datetime.datetime):
+            return value.strftime('%Y-%m-%d %H:%M:%S')
+        else:
+            return str(value)
+
     def _request_data(self, method, **kwargs):
         req_data = {"method": method}
         if method not in {"get_token", "get_current_token"}:
@@ -120,7 +172,8 @@ class JQDataApi(object):
             show_request_body=(show_request_params or self.show_request_params)
         )
         req_data.update({
-            key: val for key, val in kwargs.items() if val is not None
+            key: self.__serialize_value(val)
+            for key, val in kwargs.items() if val is not None
         })
         try:
             resp_data = request(req_data)
@@ -235,48 +288,6 @@ def get_query_count(field=None):
 def settimeout(value):
     """设置请求超时时间"""
     api.timeout = value
-
-
-class _LazyModuleType(ModuleType):
-
-    @property
-    def _mod(self):
-        name = super(_LazyModuleType, self).__getattribute__("__name__")
-        if name not in sys.modules:
-            __import__(name)
-        return sys.modules[name]
-
-    def __getattribute__(self, name):
-        if name == "_mod":
-            return super(_LazyModuleType, self).__getattribute__(name)
-
-        try:
-            return self._mod.__getattribute__(name)
-        except AttributeError:
-            return super(_LazyModuleType, self).__getattribute__(name)
-
-    def __setattr__(self, name, value):
-        self._mod.__setattr__(name, value)
-
-
-np = _LazyModuleType("numpy")
-pd = _LazyModuleType("pandas")
-
-
-def is_string_types(obj):
-    if sys.version_info[0] < 3:
-        string_types = basestring
-    else:
-        string_types = str
-    return isinstance(obj, string_types)
-
-
-def is_text_type(obj):
-    if sys.version_info[0] < 3:
-        text_type = unicode
-    else:
-        text_type = str
-    return isinstance(obj, text_type)
 
 
 def _csv2list(data):
@@ -694,6 +705,64 @@ def get_bars(security, count, unit="1d", fields=None, include_now=False,
             count=int(count),
             unit=unit,
             end_date=end_dt,
+            fq_ref_date=fq_ref_date,
+        )
+        header = [
+            item.strip() for item in data.split('\n', 1)[0].split(',') if item
+        ]
+        dtype = [(col, _bar_data_dtypes[col]) for col in header]
+        bars = _csv2array(data, dtype=dtype, skip_header=1)
+        bars["date"] = _array2datetime(bars["date"])
+        bars_mapping[code] = bars[fields] if fields else bars
+
+    if df:
+        if is_list_security:
+            dfs = []
+            for code, arr in bars_mapping.items():
+                index = [[code] * arr.size, list(range(arr.size))]
+                dfs.append(pd.DataFrame(data=arr, index=index))
+            return pd.concat(dfs, copy=False)
+        else:
+            _, arr = bars_mapping.popitem()
+            return pd.DataFrame(data=arr, index=range(arr.size))
+    else:
+        if is_list_security:
+            return bars_mapping
+        else:
+            _, arr = bars_mapping.popitem()
+            return arr
+
+
+def get_bars_period(security, start_dt, end_dt, unit="1d", fields=None,
+                    fq_ref_date=None, df=True):
+    """获取指定时间段的行情数据
+
+    参数：
+        code: 证券代码，支持多个
+        start_dt: 开始时间，不能为空，格式 2018-07-03 或 2018-07-03 10:40:00
+            如果是 2018-07-03 则默认为 2018-07-03 00:00:00
+        end_dt：结束时间，不能为空，格式 2018-07-03 或 2018-07-03 10:40:00，
+            如果是 2018-07-03 则默认为 2018-07-03 23:59:00
+        unit: 时间单位, 支持如下周期：1m, 5m, 15m, 30m, 60m, 120m, 1d, 1w, 1M
+              其中 m 表示分钟，d 表示天，w 表示周，M 表示月
+        fields: 需要获取的数据字段
+        fq_ref_date：复权基准日期，该参数为空时返回不复权数据
+        df: 是否返回 pandas.DataFrame，否则返回 numpy.ndarray
+    """
+    is_list_security = isinstance(security, (tuple, list, set)) or ',' in security
+    security = _convert_security(security)
+    start_dt = to_datetime(start_dt)
+    end_dt = to_datetime(end_dt)
+    if fq_ref_date:
+        fq_ref_date = to_date(fq_ref_date)
+
+    bars_mapping = {}
+    for code in security:
+        data = api.get_bars_period(
+            code=code,
+            date=start_dt,
+            end_date=end_dt,
+            unit=unit,
             fq_ref_date=fq_ref_date,
         )
         header = [
