@@ -5,6 +5,9 @@
 
 from math import isclose
 from itertools import zip_longest
+import os
+
+import pytest
 
 import jqdatahttp
 from jqdatahttp import JQDataApi
@@ -20,7 +23,8 @@ class TestJQDataApi(object):
 
     def setup_class(cls):
         api = JQDataApi()
-        api.auth()
+        api.auth(username=os.getenv("JQDATA_USERNAME"),
+                 password=os.getenv("JQDATA_PASSWORD"))
         api.auto_format_data = True
         cls.api = api
 
@@ -49,6 +53,14 @@ class TestJQDataApi(object):
                                     date='2020-09-01',
                                     end_date='2020-09-01 15:00:00')
         print(data)
+
+
+def setup_module():
+    jqdatahttp.auth(os.getenv("JQDATA_USERNAME"), os.getenv("JQDATA_PASSWORD"))
+
+
+def teardown_module():
+    jqdatahttp.logout()
 
 
 def test_get_bars():
@@ -163,7 +175,7 @@ def test_get_industries():
     assert len(data) > 0
 
     data2 = jqdatahttp.get_industries('zjw', date="2021-06-10")
-    assert len(data) > len(data2)
+    assert len(data) >= len(data2)
 
 
 def test_get_concept_stocks():
@@ -221,5 +233,30 @@ def test_get_dominant_future():
 
 
 def test_get_index_weights():
-    # get_index_weights(index_id="000001.XSHG", date="2018-05-09")
-    pass
+    data = jqdatahttp.get_index_weights("000001.XSHG", date="2018-05-09")
+    print(data)
+    assert allclose(data.loc['603648.XSHG':'603131.XSHG', 'weight'],
+                    [0.023, 0.007, 0.015, 0.009, 0.011])
+
+
+def test_get_industry():
+    data = jqdatahttp.get_industry(['000001.XSHE', '000002.XSHE'])
+    print(data)
+    assert isinstance(data, dict)
+
+
+def test_get_fund_info():
+    data = jqdatahttp.get_fund_info('519223.OF', date='2018-12-01')
+    print(data)
+    assert isinstance(data, dict)
+
+
+def test_get_call_auction():
+    data = jqdatahttp.get_call_auction("000001.XSHE,000002.XSHE", '2019-09-02','2019-09-05',
+                                        fields=['code', 'time', 'current', 'volume', 'money'])
+    print(data)
+    assert "a1_v" not in data.columns
+
+
+if __name__ == '__main__':
+    pytest.main(['-q', 'tests.py'])

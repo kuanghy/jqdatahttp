@@ -206,7 +206,7 @@ class JQDataApi(object):
 
     def auth(self, username=None, password=None, url=None):
         if url:
-            self.url = url
+            self._url = url
         self.get_current_token(mob=username, pwd=password)
 
     def logout(self):
@@ -958,7 +958,7 @@ def get_industries(name='zjw', date=None):
     data["start_date"] = pd.to_datetime(data.start_date)
     if date:
         dt = to_datetime(date)
-        data = data[data.start_date >= dt]
+        data = data[data.start_date <= dt]
     return data
 
 
@@ -1111,25 +1111,36 @@ def get_index_weights(index_id, date=None):
     """获取指数成分股权重"""
     assert index_id, "index_id is required"
     date = to_date(date)
+    data = api.get_index_weights(code=index_id, date=date)
+    data = _csv2df(data).set_index('code')
+    return data
 
 
-def get_industry(security, date=None):
+def get_industry(security_list, date=None):
     """查询股票所属行业"""
-    assert security, "security is required"
-    security = convert_security(security)
+    assert security_list, "security_list is required"
+    security_list = _convert_security(security_list)
     date = to_date(date)
+    security_map = {}
+    for security in security_list:
+        data = api.get_industry(code=security, date=date)
+        df = _csv2df(data).set_index('industry')
+        industry_map = df.to_dict('index')
+        security_map[security] = industry_map
+    return security_map
 
 
-def get_fund_info(security, date=None):
+def get_fund_info(fund_code, date=None):
     """基金基础信息数据接口"""
-    assert security, "security is required"
-    security = convert_security(security)
+    assert fund_code, "fund_code is required"
     date = to_date(date)
+    data = api.get_fund_info(code=fund_code, date=date, auto_format_result=True)
+    return data
 
 
 def get_factor_effect(security, start_date, end_date, period, factor, group_num=5):
     """获取因子分层回测效果"""
-    security = convert_security(security)
+    security = _convert_security(security)
     start_date = to_date(start_date)
     end_date = to_date(end_date)
     assert group_num > 0, "group_num must be a positive numbe"
@@ -1137,5 +1148,22 @@ def get_factor_effect(security, start_date, end_date, period, factor, group_num=
     assert period[-1] in ["D", "W", "M"], "period must be end with one of (\"D\", \"W\", \"M\")"
 
 
-def get_call_auction(security, start_date=None, end_date=None, fields=None):
+def get_call_auction(security_list, start_date, end_date, fields=None):
     """获取指定时间区间内集合竞价时的 Tick 数据"""
+    assert security_list, "security_list is required"
+    assert start_date, "start_date is required"
+    assert end_date, "end_date is required"
+    start_date = to_date(start_date)
+    end_date = to_date(end_date)
+    security_list = _convert_security(security_list)
+    df_list = []
+    for security in security_list:
+        data = api.get_call_auction(code=security, date=start_date, end_date=end_date)
+        df = _csv2df(data)
+        df_list.append(df)
+    data = pd.concat(df_list)
+    if fields:
+        if is_string_types(fields):
+            fields = [fields]
+        data = data[fields]
+    return data
