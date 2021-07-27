@@ -639,14 +639,14 @@ def _convert_security(security):
 
 
 _bar_data_dtypes = OrderedDict([
-    ('date', '<U26'), ('open', '<f8'), ('close', '<f8'),
+    ('date', 'O'), ('open', '<f8'), ('close', '<f8'),
     ('high', '<f8'), ('low', '<f8'), ('volume', '<f8'), ('money', '<f8'),
     ('paused', '<i1'), ('high_limit', '<f8'), ('low_limit', '<f8'),
     ('avg', '<f8'), ('pre_close', '<f8'), ('open_interest', '<f8'),
 ])
 
 _tick_data_dtypes = OrderedDict([
-    ('time', '<U26'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
+    ('time', 'O'), ('current', '<f8'), ('high', '<f8'), ('low', '<f8'),
     ('volume', '<f8'), ('money', '<f8'), ('position', '<f8'),
     ('a1_v', '<f8'), ('a2_v', '<f8'), ('a3_v', '<f8'), ('a4_v', '<f8'), ('a5_v', '<f8'),
     ('a1_p', '<f8'), ('a2_p', '<f8'), ('a3_p', '<f8'), ('a4_p', '<f8'), ('a5_p', '<f8'),
