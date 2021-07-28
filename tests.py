@@ -6,6 +6,7 @@
 from math import isclose
 from itertools import zip_longest
 import os
+import datetime
 
 import pytest
 
@@ -63,6 +64,48 @@ def teardown_module():
     jqdatahttp.logout()
 
 
+def test_get_security_info():
+    security_info1 = jqdatahttp.get_security_info("600519.XSHG")
+    assert security_info1.display_name == "贵州茅台"
+    assert security_info1.start_date == datetime.date(2001, 8, 27)
+
+    security_info2 = jqdatahttp.get_security_info("000300.XSHG")
+    assert security_info2.start_date == datetime.date(2005, 4, 8)
+    assert security_info2.type == "index"
+
+
+def test_get_all_securities():
+    data = jqdatahttp.get_all_securities(['index'])
+    assert len(data)
+
+    data2 = jqdatahttp.get_all_securities(['fja', 'fjb'])
+    assert len(data2)
+
+
+def test_get_ticks():
+    data = jqdatahttp.get_ticks('600519.XSHG', count=10,
+                                end_dt='2021-07-07 10:21:00')
+    assert allclose(data.iloc[0, 1:4], [2020.01, 2028.88, 2003.84])
+    data = jqdatahttp.get_ticks('399998.XSHE', count=5,
+                                end_dt='2021-07-07 10:23:00')
+    assert allclose(data.iloc[0, 1:4], [1617.3189, 1639.7735, 1615.5138])               
+
+
+def test_convert_security():
+    security_info1 = jqdatahttp.get_security_info('000001.XSHE')
+    security_info2 = jqdatahttp.get_security_info('000018.XSHE')
+    data = jqdatahttp.get_extras(
+        'is_st',
+        [security_info1, security_info2],
+        start_date='2013-12-01',
+        end_date='2013-12-03'
+    )
+    print(data)
+    data2 = jqdatahttp.get_industry(security_info2)
+    print(data2)
+    assert len(data), len(data2)
+
+
 def test_get_bars():
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
                                count=10, unit='1d')
@@ -91,8 +134,24 @@ def test_get_bars_period():
         'SN2109.XSGE', '2021-07-06', '2021-07-06 15:30', unit='1m'
     )
     print(data)
-    data = data.drop('date', 1)
+    data = data.drop(columns='date')
     assert not (data < 0).any().any()
+
+
+def test_get_current_tick():
+    data = jqdatahttp.get_current_tick("600519.XSHG")
+    assert len(data)
+
+
+def test_get_current_ticks():
+    data = jqdatahttp.get_current_ticks(["600519.XSHG", "000002.XSHE"])
+    assert len(data)
+
+
+def test_get_last_price():
+    data = jqdatahttp.get_last_price(['000001.XSHE', '600000.XSHG'])
+    print(data)
+    assert sum(data.values())
 
 
 def test_get_factor_values():
@@ -106,12 +165,6 @@ def test_get_factor_values():
 
     df = data["net_profit_ratio"]
     assert df.iloc[0, 0] > 0
-
-
-def test_get_last_price():
-    data = jqdatahttp.get_last_price(['000001.XSHE', '600000.XSHG'])
-    print(data)
-    assert sum(data.values())
 
 
 def test_get_extras():
@@ -252,8 +305,10 @@ def test_get_fund_info():
 
 
 def test_get_call_auction():
-    data = jqdatahttp.get_call_auction("000001.XSHE,000002.XSHE", '2019-09-02','2019-09-05',
-                                        fields=['code', 'time', 'current', 'volume', 'money'])
+    data = jqdatahttp.get_call_auction(
+        "000001.XSHE,000002.XSHE", '2019-09-02', '2019-09-05',
+        fields=['code', 'time', 'current', 'volume', 'money']
+    )
     print(data)
     assert "a1_v" not in data.columns
 

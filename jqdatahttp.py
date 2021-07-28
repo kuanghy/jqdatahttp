@@ -678,7 +678,7 @@ def get_price(security, start_date=None, end_date=None, frequency='1d',
     data = api.get_price(
         code=security,
         end_date=end_date,
-        count=10,
+        count=int(count),
         unit=frequency,
         fq_ref_date=None
     )
@@ -814,7 +814,7 @@ def get_last_price(codes):
     return {row.code: row.current for _, row in data.iterrows()}
 
 
-def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=False):
+def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=True):
     """获取 Tick 数据"""
     is_list_security = isinstance(security, (tuple, list, set)) or ',' in security
     security = _convert_security(security)
