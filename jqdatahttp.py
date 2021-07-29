@@ -45,6 +45,14 @@ def is_text_type(obj):
     return isinstance(obj, text_type)
 
 
+def is_binary_type(obj):
+    if sys.version_info[0] < 3:
+        binary_type = str
+    else:
+        binary_type = bytes
+    return isinstance(obj, binary_type)
+
+
 class _LazyModuleType(ModuleType):
 
     @property
@@ -331,18 +339,22 @@ def to_date(date):
     if not date:
         return date
     elif is_string_types(date):
-        if ':' in date:
-            date = date[:10]
+        date = date[:10]
+        separator = date[4]
         try:
-            return datetime.date(*map(int, date.split('-')))
+            if separator in {'-', '/'}:
+                return datetime.date(*map(int, date.split(separator)))
+            else:
+                return datetime.date(int(date[:4]), int(date[4:6]), int(date[6:8]))
         except Exception:
-            pass
+            raise
     elif isinstance(date, datetime.datetime):
         return date.date()
     elif isinstance(date, datetime.date):
         return date
-    raise ValueError("date must be datetime.date, datetime.datetime, "
-                     "pandas.Timestamp or like '2015-01-05'")
+    elif is_binary_type(date):
+        return to_date(date.decode('utf8'))
+    raise ValueError("bad date format '{!r}'".format(date))
 
 
 def to_datetime(dt):
@@ -351,15 +363,23 @@ def to_datetime(dt):
         return dt
     elif is_string_types(dt):
         try:
-            return datetime.datetime(*map(int, re.split(r"\W+", dt)))
+            slen = len(dt)
+            if slen == 12 or slen == 14:  # 202101010000 or 20210101000000
+                return datetime.datetime(
+                    int(dt[:4]),
+                    *map(int, (dt[idx:(idx + 2)] for idx in range(4, slen, 2)))
+                )
+            else:
+                return datetime.datetime(*map(int, re.split(r"\W+", dt)))
         except Exception:
             pass
     elif isinstance(dt, datetime.datetime):
         return dt
     elif isinstance(dt, datetime.date):
         return _date2dt(dt)
-    raise ValueError("dt must be datetime.date, datetime.datetime or like "
-                     "'2015-01-05 12:00:00'")
+    elif is_binary_type(dt):
+        return to_datetime(dt.decode('utf8'))
+    raise ValueError("bad datetime format '{!r}'".format(dt))
 
 
 def _array2date(data):
