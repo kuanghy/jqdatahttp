@@ -1140,12 +1140,7 @@ def get_fund_info(fund_code, date=None):
 
 def get_factor_effect(security, start_date, end_date, period, factor, group_num=5):
     """获取因子分层回测效果"""
-    security = _convert_security(security)
-    start_date = to_date(start_date)
-    end_date = to_date(end_date)
-    assert group_num > 0, "group_num must be a positive numbe"
-    assert isinstance(security, six.string_types), "security must be a inde code"
-    assert period[-1] in ["D", "W", "M"], "period must be end with one of (\"D\", \"W\", \"M\")"
+    raise NotImplementedError()
 
 
 def get_call_auction(security_list, start_date, end_date, fields=None):

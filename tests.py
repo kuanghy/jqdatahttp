@@ -3,12 +3,10 @@
 # Copyright (c) Huoty, All rights reserved
 # Author: Huoty <sudohuoty@163.com>
 
+import datetime
 from math import isclose
 from itertools import zip_longest
-import os
-import datetime
 
-import pytest
 
 import jqdatahttp
 from jqdatahttp import JQDataApi
@@ -24,8 +22,6 @@ class TestJQDataApi(object):
 
     def setup_class(cls):
         api = JQDataApi()
-        api.auth(username=os.getenv("JQDATA_USERNAME"),
-                 password=os.getenv("JQDATA_PASSWORD"))
         api.auto_format_data = True
         cls.api = api
 
@@ -56,14 +52,6 @@ class TestJQDataApi(object):
         print(data)
 
 
-def setup_module():
-    jqdatahttp.auth(os.getenv("JQDATA_USERNAME"), os.getenv("JQDATA_PASSWORD"))
-
-
-def teardown_module():
-    jqdatahttp.logout()
-
-
 def test_get_security_info():
     security_info1 = jqdatahttp.get_security_info("600519.XSHG")
     assert security_info1.display_name == "贵州茅台"
@@ -88,7 +76,7 @@ def test_get_ticks():
     assert allclose(data.iloc[0, 1:4], [2020.01, 2028.88, 2003.84])
     data = jqdatahttp.get_ticks('399998.XSHE', count=5,
                                 end_dt='2021-07-07 10:23:00')
-    assert allclose(data.iloc[0, 1:4], [1617.3189, 1639.7735, 1615.5138])               
+    assert allclose(data.iloc[0, 1:4], [1617.3189, 1639.7735, 1615.5138])
 
 
 def test_convert_security():
@@ -311,7 +299,3 @@ def test_get_call_auction():
     )
     print(data)
     assert "a1_v" not in data.columns
-
-
-if __name__ == '__main__':
-    pytest.main(['-q', 'tests.py'])
