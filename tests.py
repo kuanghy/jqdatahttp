@@ -116,6 +116,12 @@ def test_get_bars():
         2466.0, 2356.0, 2682.0, 2288.0, 24901720.0, 617942268640.0
     ])
 
+    securities = ["ZN2112P24400.XSGE", "10003205.XSHG"]
+    data = jqdatahttp.get_bars(securities, unit='1d',
+                               end_dt="2021-09-10 10:18:00", count=1, df=False)
+    print(data)
+    assert set(securities) == set(data)
+
 
 def test_get_bars_period():
     data = jqdatahttp.get_bars_period(

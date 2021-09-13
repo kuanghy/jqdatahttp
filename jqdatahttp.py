@@ -312,9 +312,11 @@ def _csv2array(data, dtype=None, skip_header=0):
         return np.empty((0, 0))
     if dtype and not isinstance(dtype, np.dtype):
         dtype = np.dtype(dtype)
-    return np.genfromtxt(
-        StringIO(data), dtype=dtype, delimiter=",", skip_header=skip_header
-    )
+    arr = np.genfromtxt(StringIO(data), dtype=dtype, delimiter=",",
+                        skip_header=skip_header)
+    if arr.size == 1 and len(arr.shape) == 0:
+        arr = np.array([arr], dtype=arr.dtype)
+    return arr
 
 
 def _csv2df(data, dtype=None):
