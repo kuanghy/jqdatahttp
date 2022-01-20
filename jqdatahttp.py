@@ -140,8 +140,7 @@ class JQDataApi(object):
                 err_msg = "请求超时，服务器繁忙，请稍后重试或减少查询条数"
                 raise JQDataError(err_msg)
             elif ex.code == 500:
-                err_msg = ("请求频率过高，每个账号每分钟最多允许请求 1800 次，"
-                           "请稍后再试")
+                err_msg = "服务器内部错误: '{}', 请稍后再试".format(ex)
                 raise JQDataError(err_msg)
             else:
                 raise
