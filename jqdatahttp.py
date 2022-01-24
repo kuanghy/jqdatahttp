@@ -1164,17 +1164,21 @@ def get_factor_effect(security, start_date, end_date, period, factor, group_num=
     raise NotImplementedError()
 
 
-def get_call_auction(security_list, start_date, end_date, fields=None):
+def get_call_auction(security, start_date, end_date, fields=None):
     """获取指定时间区间内集合竞价时的 Tick 数据"""
-    assert security_list, "security_list is required"
+    assert security, "security is required"
     assert start_date, "start_date is required"
     assert end_date, "end_date is required"
     start_date = to_date(start_date)
     end_date = to_date(end_date)
-    security_list = _convert_security(security_list)
+    security_list = _convert_security(security)
     df_list = []
-    for security in security_list:
-        data = api.get_call_auction(code=security, date=start_date, end_date=end_date)
+    offset = 100
+    for idx in range(0, len(security_list), offset):
+        securities = security_list[idx:(idx + offset)]
+        data = api.get_call_auction(code=','.join(securities),
+                                    date=start_date,
+                                    end_date=end_date)
         df = _csv2df(data)
         df_list.append(df)
     data = pd.concat(df_list)

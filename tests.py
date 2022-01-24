@@ -4,6 +4,7 @@
 # Author: Huoty <sudohuoty@163.com>
 
 import datetime
+import functools
 from math import isclose
 from itertools import zip_longest
 
@@ -299,9 +300,28 @@ def test_get_fund_info():
 
 
 def test_get_call_auction():
-    data = jqdatahttp.get_call_auction(
-        "000001.XSHE,000002.XSHE", '2019-09-02', '2019-09-05',
+    start_date = '2022-01-10'
+    end_date = '2022-01-12'
+    get_call_auction = functools.partial(
+        jqdatahttp.get_call_auction,
+        start_date=start_date,
+        end_date=end_date,
         fields=['code', 'time', 'current', 'volume', 'money']
     )
+
+    data = get_call_auction("000001.XSHE")
     print(data)
+    assert len(data) > 1
     assert "a1_v" not in data.columns
+
+    securities = jqdatahttp.get_all_securities("stock", start_date)
+    securities = securities.index.tolist()
+    data = get_call_auction(securities[:18])
+    assert len(set(data.code)) == 18
+
+    data = get_call_auction(securities[:118])
+    assert len(set(data.code)) == 118
+
+    data = get_call_auction(securities[:234])
+    print(data)
+    assert len(data) > 500
