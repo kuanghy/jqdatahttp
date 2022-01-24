@@ -31,7 +31,7 @@ __version__ = '0.1.6'
 
 def is_string_types(obj):
     if sys.version_info[0] < 3:
-        string_types = basestring
+        string_types = basestring  # noqa
     else:
         string_types = str
     return isinstance(obj, string_types)
@@ -39,7 +39,7 @@ def is_string_types(obj):
 
 def is_text_type(obj):
     if sys.version_info[0] < 3:
-        text_type = unicode
+        text_type = unicode  # noqa
     else:
         text_type = str
     return isinstance(obj, text_type)
