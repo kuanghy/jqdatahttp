@@ -26,7 +26,7 @@ except ImportError:
     from StringIO import StringIO
 
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 
 def is_string_types(obj):
