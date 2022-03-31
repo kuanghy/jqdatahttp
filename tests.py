@@ -283,8 +283,13 @@ def test_get_dominant_future():
 def test_get_index_weights():
     data = jqdatahttp.get_index_weights("000001.XSHG", date="2018-05-09")
     print(data)
-    assert allclose(data.loc['603648.XSHG':'603131.XSHG', 'weight'],
-                    [0.023, 0.007, 0.015, 0.009, 0.011])
+    assert allclose(
+        data.loc[
+            ['600000.XSHG', '600128.XSHG', '600933.XSHG', '603888.XSHG'],
+            'weight'
+        ],
+        [1.074, 0.007, 0.035, 0.035]
+    )
 
 
 def test_get_industry():
