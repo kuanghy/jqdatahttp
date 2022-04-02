@@ -53,6 +53,27 @@ class TestJQDataApi(object):
         print(data)
 
 
+def test_get_trade_days():
+    today = datetime.date.today()
+    Date = datetime.date
+    get_trade_days = jqdatahttp.get_trade_days
+    assert len(get_trade_days()) > 250 * (today.year - 2015)
+    assert len(get_trade_days(Date(2018, 4, 16), Date(2018, 4, 18))) == 3
+    date = Date(2018, 4, 19)
+    assert get_trade_days(start_date=date)[0] == date
+    assert get_trade_days(end_date=date)[-1] == date
+    assert get_trade_days(start_date=date, count=1) == [date]
+    assert get_trade_days(start_date=date, count=3)[-1] == Date(2018, 4, 23)
+    assert get_trade_days(end_date=date, count=5)[0] == Date(2018, 4, 13)
+
+
+def test_is_trade_date():
+    assert jqdatahttp.is_trading_day(datetime.date(2017, 12, 1))
+    assert not jqdatahttp.is_trading_day(datetime.date(2017, 11, 25))
+    assert jqdatahttp.is_trading_day('2022-04-01')
+    assert not jqdatahttp.is_trading_day('2022-04-02')
+
+
 def test_get_security_info():
     security_info1 = jqdatahttp.get_security_info("600519.XSHG")
     assert security_info1.display_name == "贵州茅台"
@@ -135,7 +156,9 @@ def test_get_bars_period():
 
 def test_get_current_tick():
     data = jqdatahttp.get_current_tick("600519.XSHG")
-    assert len(data)
+    print(data)
+    if jqdatahttp.is_trading_day(datetime.date.today()):
+        assert len(data)
 
 
 def test_get_current_ticks():

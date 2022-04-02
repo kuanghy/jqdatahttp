@@ -569,6 +569,7 @@ def get_all_securities(types=[], date=None):
     return securities.set_index('code')
 
 
+@functools.lru_cache(None)
 def get_all_trade_days():
     """获取所有交易日"""
     data = _csv2array(api.get_all_trade_days(), dtype="<U16")
@@ -599,6 +600,16 @@ def get_trade_days(start_date=None, end_date=None, count=None):
     if end_date and not any([start_date, count]):
         return dates[:end_idx]
     raise ParamsError("start_date 参数与 count 参数必须输入一个")
+
+
+def is_trading_day(date):
+    date = to_date(date)
+    all_dates = get_all_trade_days()
+    idx = all_dates.searchsorted(date)
+    try:
+        return all_dates[idx] == date
+    except IndexError:
+        return False
 
 
 def _normalize_stock_code(code):
