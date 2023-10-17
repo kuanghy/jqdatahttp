@@ -208,6 +208,15 @@ def test_get_extras():
     assert isinstance(data, dict) and sum(data['510050.XSHG']) > 9
 
 
+def test_get_extras2():
+    code = '000403.XSHE'
+    df = jqdatahttp.get_extras(
+        'is_st', code,
+        end_date='2018-11-23', count=5
+    )
+    assert df[code].tolist() == [True, True, True, False, False]
+
+
 def test_get_fundamentals():
     data = jqdatahttp.get_fundamentals(
         code='000651.XSHE', date='2019q1', table='income', count=100
