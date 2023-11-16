@@ -158,7 +158,9 @@ class JQDataApi(object):
         return resp_data
 
     def __serialize_value(self, value):
-        if isinstance(value, (tuple, list, set)):
+        if isinstance(value, (int, float, str, bool)) or value is None:
+            return value
+        elif isinstance(value, (tuple, list, set)):
             return ",".join(value)
         if isinstance(value, datetime.date):
             return str(value)
@@ -821,6 +823,17 @@ def get_bars_period(security, start_dt, end_dt, unit="1d", fields=None,
         else:
             _, arr = bars_mapping.popitem()
             return arr
+
+
+def get_fq_factor(security, start_date, end_date, fq="post"):
+    """获取股票和基金复权因子"""
+    security = _convert_security(security)
+    start_date = to_date(start_date)
+    end_date = to_date(end_date)
+    data = api.get_fq_factor(
+        code=security, fq=fq, date=start_date, end_date=end_date
+    )
+    return _csv2df(data)
 
 
 def get_current_tick(security):

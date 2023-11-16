@@ -119,20 +119,32 @@ def test_convert_security():
 def test_get_bars():
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
                                count=10, unit='1d')
+    dbar_fields = [
+        'date', 'open', 'close', 'high', 'low', 'volume', 'money', 'paused',
+        'high_limit', 'low_limit', 'open_interest', 'avg', 'pre_close',
+    ]
+    data = data.reindex(columns=dbar_fields)
     print(data)
     print(data.iloc[0, 1:])
     assert allclose(data.iloc[0, 1:], [
         2486.0, 2460.0, 2491.0, 2420.0, 1295422.0, 31763747440.0, 0, 2663.0,
         2361.0, 855268.0, 2451.7385, 2512.0
     ])
+
+    mbar_fields = [
+        'date', 'open', 'close', 'high', 'low', 'volume', 'money',
+        'open_interest'
+    ]
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
                                count=20, unit='1m')
+    data = data.reindex(columns=mbar_fields)
     print(data)
     assert allclose(data.iloc[-2, 1:], [
         2352.0, 2351.0, 2353.0, 2351.0, 2604.0, 61272120.0, 691364.0
     ])
     data = jqdatahttp.get_bars('MA2105.XZCE', end_dt='2021-03-24',
                                count=30, unit='1M')
+    data = data.reindex(columns=mbar_fields[:-1])
     print(data)
     assert allclose(data.iloc[-1, 1:], [
         2466.0, 2356.0, 2682.0, 2288.0, 24901720.0, 617942268640.0
@@ -152,6 +164,17 @@ def test_get_bars_period():
     print(data)
     data = data.drop(columns='date')
     assert not (data < 0).any().any()
+
+
+def test_get_fq_factor():
+    params = dict(
+        security='000001.XSHE', start_date='2023-06-10', end_date='2023-06-15'
+    )
+    data = jqdatahttp.get_fq_factor(**params)
+    print(data)
+    params['fq'] = "pre"
+    data = jqdatahttp.get_fq_factor(**params)
+    print(data)
 
 
 def test_get_current_tick():
