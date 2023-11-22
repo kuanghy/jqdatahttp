@@ -125,6 +125,10 @@ class JQDataApi(object):
     def url(self):
         return self._url or os.getenv("JQDATA_URL") or self._DEFAULT_URL
 
+    @url.setter
+    def url(self, value):
+        self._url = value
+
     def _request(self, data, show_request_body=False):
         req_body = json.dumps(data, default=str)
         if show_request_body:
@@ -136,12 +140,32 @@ class JQDataApi(object):
         try:
             resp = urlopen(req, timeout=self.timeout)
         except HTTPError as ex:
-            if ex.code == 504:
-                err_msg = "请求超时，服务器繁忙，请稍后重试或减少查询条数"
+            status_code = getattr(ex, "code", 0)
+            if status_code == 504:
+                err_msg = "请求超时，请稍后重试或减少查询条数"
                 raise JQDataError(err_msg)
-            elif ex.code == 500:
-                err_msg = "服务器内部错误: '{}', 请稍后再试".format(ex)
+            elif status_code == 500:
+                err_msg = "服务器内部错误，请稍后再试，错误信息：{}".format(ex)
                 raise JQDataError(err_msg)
+            elif status_code == 429:
+                err_msg = "请求频率过高，请稍后再试"
+                raise JQDataError(err_msg)
+            elif 400 <= status_code < 500:
+                try:
+                    resp_body = ex.read()
+                except Exception:
+                    raise ex
+                if not resp_body:
+                    raise
+                resp_data = resp_body.decode(self._encoding)
+                if resp_data.startswith("error:"):
+                    err_msg = resp_data.replace("error:", "").strip()
+                    if re.search(self._INVALID_TOKEN_PATTERN, err_msg):
+                        raise InvalidTokenError(err_msg)
+                    else:
+                        raise JQDataError(err_msg)
+                else:
+                    raise JQDataError(resp_data[:100])
             else:
                 raise
         with resp:
@@ -154,7 +178,7 @@ class JQDataApi(object):
                 else:
                     raise JQDataError(err_msg)
             if resp.status != 200:
-                raise JQDataError(resp_data)
+                raise JQDataError(resp_data[:100])
         return resp_data
 
     def __serialize_value(self, value):
@@ -273,6 +297,10 @@ def auth(username, password, url=None):
 def logout():
     """退出账号"""
     api.logout()
+
+
+def set_url(url):
+    api.url = url
 
 
 def get_token(username=None, password=None):

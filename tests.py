@@ -282,8 +282,8 @@ def test_get_industries():
 
 
 def test_get_concept_stocks():
-    print(jqdatahttp.get_concept_stocks('GN086'))
-    data = jqdatahttp.get_concept_stocks('GN036', date='2019-04-16')
+    print(jqdatahttp.get_concept_stocks('SC0001'))
+    data = jqdatahttp.get_concept_stocks('SC0084', date='2019-04-16')
     print(data)
     assert len(data) > 5
 
