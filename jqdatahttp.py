@@ -247,6 +247,10 @@ class JQDataApi(object):
         self._password = None
         self.token = None
 
+    def set_url(self, url):
+        self._url = url
+        return self  # 支持链式调用
+
     def __getattr__(self, name):
         if name.startswith("get_") or name == "run_query":
 
