@@ -346,7 +346,7 @@ def _csv2array(data, dtype=None, skip_header=0):
     if dtype and not isinstance(dtype, np.dtype):
         dtype = np.dtype(dtype)
     arr = np.genfromtxt(StringIO(data), dtype=dtype, delimiter=",",
-                        skip_header=skip_header)
+                        skip_header=skip_header, encoding='utf-8')
     if arr.size == 1 and len(arr.shape) == 0:
         arr = np.array([arr], dtype=arr.dtype)
     return arr
@@ -891,19 +891,22 @@ def get_last_price(codes):
     return {row.code: row.current for _, row in data.iterrows()}
 
 
-def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, skip=True, df=True):
+def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None,
+              skip=True, df=True):
     """获取 Tick 数据"""
     is_list_security = isinstance(security, (tuple, list, set)) or ',' in security
     security = _convert_security(security)
     end_dt = to_datetime(end_dt) if end_dt else datetime.datetime.now()
-    if start_dt and count:
-        raise ParamsError("start_dt 与 count 参数只能二选一")
     if count:
         assert count > 0
-        get_data = functools.partial(api.get_ticks, count=count, end_date=end_dt)
+        get_data = functools.partial(
+            api.get_ticks, count=count, end_date=end_dt, skip=skip
+        )
     else:
         start_dt = to_datetime(start_dt if start_dt else end_dt.date())
-        get_data = functools.partial(api.get_ticks_period, date=start_dt, end_date=end_dt)
+        get_data = functools.partial(
+            api.get_ticks_period, date=start_dt, end_date=end_dt, skip=skip
+        )
 
     ticks_mapping = {}
     for code in security:
@@ -913,6 +916,8 @@ def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, ski
         ]
         dtype = [(col, _tick_data_dtypes[col]) for col in header]
         ticks = _csv2array(data, dtype=dtype, skip_header=1)
+        if "time" in ticks.dtype.names:
+            ticks["time"] = ticks["time"].astype(str)
         ticks_mapping[code] = ticks[fields] if fields else ticks
 
     if df:
@@ -920,7 +925,10 @@ def get_ticks(security, start_dt=None, end_dt=None, count=None, fields=None, ski
         for code, arr in ticks_mapping.items():
             index = [[code] * arr.size, list(range(arr.size))]
             dfs.append(pd.DataFrame(data=arr, index=index))
-        return pd.concat(dfs, copy=False)
+        df = pd.concat(dfs, copy=False)
+        if "time" in df:
+            df["time"] = pd.to_datetime(df.time)
+        return df
     else:
         if is_list_security or len(ticks_mapping) > 1:
             return ticks_mapping

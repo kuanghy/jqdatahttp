@@ -100,6 +100,18 @@ def test_get_ticks():
                                 end_dt='2021-07-07 10:23:00')
     assert allclose(data.iloc[0, 1:4], [1617.3189, 1639.7735, 1615.5138])
 
+    data = jqdatahttp.get_ticks('000001.XSHE', start_dt='2023-12-11 15:00:00',
+                                end_dt='2023-12-12 09:30:00', skip=True)
+    print(data)
+    data["time"] = data.time.astype(str)
+    assert '2023-12-11 15:00:00' <= data['time'].iloc[0] < '2023-12-11 16:00:00'
+    assert '2023-12-12 09:00:00' < data['time'].iloc[-1] <= '2023-12-12 09:30:00'
+    data2 = jqdatahttp.get_ticks('000001.XSHE', start_dt='2023-12-11 15:00:00',
+                                 end_dt='2023-12-12 09:30:00', skip=False)
+    print(data2)
+    data2["time"] = data2.time.astype(str)
+    assert set(data['time']) < set(data2['time'])
+
 
 def test_convert_security():
     security_info1 = jqdatahttp.get_security_info('000001.XSHE')
