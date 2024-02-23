@@ -93,7 +93,10 @@ class ParamsError(JQDataError):
 
 class JQDataApi(object):
 
-    _DEFAULT_URL = "https://dataapi.joinquant.com/apis"
+    _V1_URL = "https://dataapi.joinquant.com/apis"
+    _V2_URL = "https://dataapi.joinquant.com/v2/apis"
+    _DEFAULT_URL = "https://dataapi.joinquant.com/v2/apis"
+
 
     def __init__(self, username=None, password=None, url=None, timeout=20):
         self._username = username
@@ -123,7 +126,18 @@ class JQDataApi(object):
 
     @property
     def url(self):
-        return self._url or os.getenv("JQDATA_URL") or self._DEFAULT_URL
+        if self._url:
+            return self._url
+        url_from_env = os.getenv("JQDATA_URL")
+        if url_from_env:
+            if url_from_env == "V1":
+                return self._V1_URL
+            elif url_from_env == "V2":
+                return self._V2_URL
+            else:
+                return url_from_env
+        else:
+            return self._DEFAULT_URL
 
     @url.setter
     def url(self, value):
@@ -427,23 +441,28 @@ def _array2datetime(data):
     return vectorize(data)
 
 
+# 交易所代码（国际标准）对应的交易所全称
+EXCHANGE_NAME_MAPPING = {
+    'XSHG': '上海证券交易所',
+    'XSHE': '深圳证券交易所',
+    'BJSE': '北京证券交易所',
+    'CSI':  '中证指数有限公司',  # 自定义，非国际标准
+    'CCFX': '中国金融期货交易所',
+    'XSGE': '上海期货交易所',
+    'XDCE': '大连商品交易所',
+    'XZCE': '郑州商品交易所',
+    'GFEX': '广州期货交易所',  # 自定义，非国际标准
+    'XINE': '上海国际能源期货交易所',
+    'OF': '场外基金',
+}
+
+
 class Security(object):
     """证券标的信息"""
 
     __slots__ = ('_code', '_type', '_start_date', '_end_date', '_name',
                  '_display_name', '_parent', '_sid', '_exchange',
                  '_exchange_name', '_extra')
-
-    _EXCHANGE_MAPPING = {
-        'XSHG': '上海证券交易所',
-        'XSHE': '深圳证券交易所',
-        'CCFX': '中国金融期货交易所',
-        'XSGE': '上海期货交易所',
-        'XDCE': '郑州商品交易所',
-        'XZCE': '大连商品交易所',
-        'XINE': '上海国际能源期货交易所',
-        'OF': '场外基金',
-    }
 
     def __init__(self, code=None, type=None, start_date=None, **kwargs):
         self._code = code or kwargs.pop("code", None)
@@ -470,7 +489,7 @@ class Security(object):
         self._parent = kwargs.pop("parent", None)
 
         self._sid, self._exchange = self._code.rsplit('.', 1)
-        self._exchange_name = self._EXCHANGE_MAPPING.get(self._exchange)
+        self._exchange_name = EXCHANGE_NAME_MAPPING.get(self._exchange)
 
         self._extra = kwargs
 
@@ -660,7 +679,7 @@ def _normalize_stock_code(code):
         return '%06d.%s' % (code, suffix)
     elif is_string_types(code):
         code = code.upper()
-        if code[-5:] in ('.XSHG', '.XSHE', '.CCFX'):
+        if code.endswith('.XSHG', '.XSHE'):
             return code
         suffix = None
         match = re.search(r'[0-9]{6}', code)
@@ -680,10 +699,13 @@ def _normalize_stock_code(code):
 
 
 def normalize_code(code):
-    """归一化证券代码
+    """归一化证券代码，将不带交易所后缀的证券代码加上交易所后缀
 
-    如将证券代码 000001 转化为全称 000001.XSHE，仅支持股票
+    如将证券代码 000001 转化为全称 000001.XSHE
+    如果传入的参数已经带了合法的交易所后缀，则不再进行处理
     """
+    if code.endswith(tuple(EXCHANGE_NAME_MAPPING)):
+        return code
     return _normalize_stock_code(code)
 
 
