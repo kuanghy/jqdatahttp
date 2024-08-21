@@ -97,7 +97,6 @@ class JQDataApi(object):
     _V2_URL = "https://dataapi.joinquant.com/v2/apis"
     _DEFAULT_URL = "https://dataapi.joinquant.com/v2/apis"
 
-
     def __init__(self, username=None, password=None, url=None, timeout=20):
         self._username = username
         self._password = password
@@ -130,9 +129,9 @@ class JQDataApi(object):
             return self._url
         url_from_env = os.getenv("JQDATA_URL")
         if url_from_env:
-            if url_from_env == "V1":
+            if url_from_env.upper() == "v1":
                 return self._V1_URL
-            elif url_from_env == "V2":
+            elif url_from_env.upper() == "v2":
                 return self._V2_URL
             else:
                 return url_from_env
@@ -141,6 +140,10 @@ class JQDataApi(object):
 
     @url.setter
     def url(self, value):
+        if value.lower() == "v1":
+            value = self._V1_URL
+        elif value.lower() == "v2":
+            value = self._V2_URL
         self._url = value
 
     def _request(self, data, show_request_body=False):
