@@ -397,3 +397,14 @@ def test_get_call_auction():
     data = get_call_auction(securities[:234])
     print(data)
     assert len(data) > 500
+
+
+def test_get_pause_stocks():
+    data = jqdatahttp.get_pause_stocks(date='2024-09-09')
+    print(data)
+    assert len(data) == 15
+    assert "000413.XSHE" in data
+    assert "300746.XSHE" in data
+    assert "688115.XSHG" in data
+    data = jqdatahttp.get_pause_stocks(date=datetime.date.today())
+    print(data)

@@ -1306,3 +1306,9 @@ def get_call_auction(security, start_date, end_date, fields=None):
             fields = [fields]
         data = data[fields]
     return data
+
+
+def get_pause_stocks(date):
+    data = api.get_pause_stocks(date=date)
+    stocks = data.strip().split()
+    return stocks
