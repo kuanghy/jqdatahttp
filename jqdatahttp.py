@@ -97,13 +97,19 @@ class JQDataApi(object):
     _V2_URL = "https://dataapi.joinquant.com/v2/apis"
     _DEFAULT_URL = "https://dataapi.joinquant.com/v2/apis"
 
-    def __init__(self, username=None, password=None, url=None, timeout=20):
+    def __init__(self, username=None, password=None, url=None, token=None,
+                 timeout=20):
         self._username = username
         self._password = password
         self._url = url
         self.timeout = timeout
 
-        self.token = None
+        # 外部设置的 token, 如果设置后会被直接使用，不再自动获取
+        self._external_token = token
+        # 自动获取的 token
+        self._auto_token = None
+
+        # 数据内容编码
         self._encoding = "UTF-8"
 
         self.show_request_params = False  # 是否显示请求参数
@@ -145,6 +151,13 @@ class JQDataApi(object):
         elif value.lower() == "v2":
             value = self._V2_URL
         self._url = value
+
+    @property
+    def token(self):
+        external_token = self._external_token or os.getenv("JQDATA_TOKEN")
+        if external_token:
+            return external_token
+        return self._auto_token
 
     def _request(self, data, show_request_body=False):
         req_body = json.dumps(data, default=str)
@@ -228,8 +241,11 @@ class JQDataApi(object):
         try:
             resp_data = request(req_data)
         except InvalidTokenError:
-            req_data["token"] = self.get_current_token()
-            resp_data = request(req_data)
+            if not self._external_token:
+                req_data["token"] = self.get_current_token()
+                resp_data = request(req_data)
+            else:
+                raise
         return resp_data
 
     def get_token(self, mob=None, pwd=None):
@@ -240,7 +256,7 @@ class JQDataApi(object):
         data = self._request_data(
             "get_token", mob=self.username, pwd=self.password
         )
-        self.token = data
+        self._auto_token = data
         return data
 
     def get_current_token(self, mob=None, pwd=None):
@@ -251,8 +267,15 @@ class JQDataApi(object):
         data = self._request_data(
             "get_current_token", mob=self.username, pwd=self.password
         )
-        self.token = data
+        self._auto_token = data
         return data
+
+    def set_token(self, token):
+        self._external_token = token
+
+    def reset_token(self):
+        self._external_token = None
+        return self.get_token()
 
     def auth(self, username=None, password=None, url=None):
         if url:
@@ -260,9 +283,11 @@ class JQDataApi(object):
         self.get_current_token(mob=username, pwd=password)
 
     def logout(self):
+        self.get_token
         self._username = None
         self._password = None
-        self.token = None
+        self._external_token = None
+        self._auto_token = None
 
     def set_url(self, url):
         self._url = url
@@ -332,9 +357,14 @@ def get_token(username=None, password=None):
         return api.token
 
 
+def set_token(token):
+    """设置指定的 Token"""
+    api.set_token(token)
+
+
 def reset_token():
     """重置 Token，主要用于 Token 失效的情况"""
-    return api.get_token()
+    return api.reset_token()
 
 
 def get_query_count(field=None):
