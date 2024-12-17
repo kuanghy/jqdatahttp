@@ -283,7 +283,6 @@ class JQDataApi(object):
         self.get_current_token(mob=username, pwd=password)
 
     def logout(self):
-        self.get_token
         self._username = None
         self._password = None
         self._external_token = None
@@ -335,7 +334,7 @@ class JQDataApi(object):
 api = JQDataApi()
 
 
-def auth(username, password, url=None):
+def auth(username=None, password=None, url=None):
     """账号认证"""
     api.auth(username=username, password=password, url=url)
 
@@ -351,10 +350,10 @@ def set_url(url):
 
 def get_token(username=None, password=None):
     """获取 Token，如果指定账号密码则获取新的 Token，否则获取当前 Token"""
-    if username and password:
-        return api.get_token(mob=username, pwd=password)
-    else:
+    if not username and not password and api.token:
         return api.token
+    else:
+        return api.get_token(mob=username, pwd=password)
 
 
 def set_token(token):
