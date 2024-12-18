@@ -18,9 +18,9 @@ from collections import OrderedDict
 
 try:
     from urllib.request import urlopen, Request as HTTPRequest
-    from urllib.error import HTTPError
+    from urllib.error import URLError, HTTPError
 except ImportError:
-    from urllib2 import urlopen, Request as HTTPRequest, HTTPError
+    from urllib2 import urlopen, Request as HTTPRequest, URLError, HTTPError
 
 try:
     from io import StringIO
@@ -179,7 +179,7 @@ class JQDataApi(object):
             try:
                 resp = urlopen(req, timeout=request_timeout)
                 break
-            except HTTPError as ex:
+            except (URLError, HTTPError) as ex:
                 status_code = getattr(ex, "code", 0)
                 if status_code == 504:
                     err_msg = "请求超时，请稍后重试或减少查询条数"
