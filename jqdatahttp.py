@@ -8,7 +8,9 @@ from __future__ import print_function
 import os
 import sys
 import re
+import time
 import json
+import logging
 import datetime
 import functools
 from types import ModuleType
@@ -27,6 +29,9 @@ except ImportError:
 
 
 __version__ = '0.1.8'
+
+
+logger = logging.getLogger('jqdatahttp')
 
 
 def is_string_types(obj):
@@ -159,45 +164,54 @@ class JQDataApi(object):
             return external_token
         return self._auto_token
 
-    def _request(self, data, show_request_body=False):
+    def _request(self, data, request_timeout=None, request_attempt_count=3,
+                 show_request_body=False):
         req_body = json.dumps(data, default=str)
+        if request_timeout is None:
+            request_timeout = self.timeout
         if show_request_body:
             print("start show request body", "-" * 20)
             print(req_body)
             print("end show request body", "-" * 20)
         data = req_body.encode(self._encoding)
         req = HTTPRequest(self.url, data=data, method="POST")
-        try:
-            resp = urlopen(req, timeout=self.timeout)
-        except HTTPError as ex:
-            status_code = getattr(ex, "code", 0)
-            if status_code == 504:
-                err_msg = "请求超时，请稍后重试或减少查询条数"
-                raise JQDataError(err_msg)
-            elif status_code == 500:
-                err_msg = "服务器内部错误，请稍后再试，错误信息：{}".format(ex)
-                raise JQDataError(err_msg)
-            elif status_code == 429:
-                err_msg = "请求频率过高，请稍后再试"
-                raise JQDataError(err_msg)
-            elif 400 <= status_code < 500:
-                try:
-                    resp_body = ex.read()
-                except Exception:
-                    raise ex
-                if not resp_body:
-                    raise
-                resp_data = resp_body.decode(self._encoding)
-                if resp_data.startswith("error:"):
-                    err_msg = resp_data.replace("error:", "").strip()
-                    if re.search(self._INVALID_TOKEN_PATTERN, err_msg):
-                        raise InvalidTokenError(err_msg)
+        for request_count in range(request_attempt_count):
+            try:
+                resp = urlopen(req, timeout=request_timeout)
+            except HTTPError as ex:
+                status_code = getattr(ex, "code", 0)
+                if status_code == 504:
+                    err_msg = "请求超时，请稍后重试或减少查询条数"
+                    raise JQDataError(err_msg)
+                elif status_code == 500:
+                    err_msg = "服务器内部错误，请稍后再试，错误信息：{}".format(ex)
+                    raise JQDataError(err_msg)
+                elif status_code == 429:
+                    err_msg = "请求频率过高，请稍后再试"
+                    raise JQDataError(err_msg)
+                elif 400 <= status_code < 500:
+                    try:
+                        resp_body = ex.read()
+                    except Exception:
+                        raise ex
+                    if not resp_body:
+                        raise
+                    resp_data = resp_body.decode(self._encoding)
+                    if resp_data.startswith("error:"):
+                        err_msg = resp_data.replace("error:", "").strip()
+                        if re.search(self._INVALID_TOKEN_PATTERN, err_msg):
+                            raise InvalidTokenError(err_msg)
+                        else:
+                            raise JQDataError(err_msg)
                     else:
-                        raise JQDataError(err_msg)
+                        raise JQDataError(resp_data[:100])
                 else:
-                    raise JQDataError(resp_data[:100])
-            else:
-                raise
+                    if request_count < request_attempt_count - 1:
+                        logger.debug('request %r error: %s', self.url, ex)
+                        time.sleep(0.5)
+                        continue
+                    else:
+                        raise
         with resp:
             resp_body = resp.read()
             resp_data = resp_body.decode(self._encoding)
@@ -230,8 +244,12 @@ class JQDataApi(object):
                 self.get_current_token()
             req_data["token"] = self.token
         show_request_params = kwargs.pop("show_request_params", False)
+        request_timeout = kwargs.pop("request_timeout", self.timeout)
+        request_attempt_count = kwargs.pop("request_attempt_count", 3)
         request = functools.partial(
             self._request,
+            request_timeout=request_timeout,
+            request_attempt_count=request_attempt_count,
             show_request_body=(show_request_params or self.show_request_params)
         )
         req_data.update({
@@ -254,7 +272,8 @@ class JQDataApi(object):
         if pwd:
             self._password = pwd
         data = self._request_data(
-            "get_token", mob=self.username, pwd=self.password
+            "get_token", mob=self.username, pwd=self.password,
+            request_timeout=5, request_attempt_count=10,
         )
         self._auto_token = data
         return data
@@ -265,7 +284,8 @@ class JQDataApi(object):
         if pwd:
             self._password = pwd
         data = self._request_data(
-            "get_current_token", mob=self.username, pwd=self.password
+            "get_current_token", mob=self.username, pwd=self.password,
+            request_timeout=5, request_attempt_count=10,
         )
         self._auto_token = data
         return data
