@@ -178,6 +178,7 @@ class JQDataApi(object):
         for request_count in range(request_attempt_count):
             try:
                 resp = urlopen(req, timeout=request_timeout)
+                break
             except HTTPError as ex:
                 status_code = getattr(ex, "code", 0)
                 if status_code == 504:
