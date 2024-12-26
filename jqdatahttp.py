@@ -10,6 +10,7 @@ import sys
 import re
 import time
 import json
+import socket
 import logging
 import datetime
 import functools
@@ -179,7 +180,7 @@ class JQDataApi(object):
             try:
                 resp = urlopen(req, timeout=request_timeout)
                 break
-            except (URLError, HTTPError) as ex:
+            except (URLError, HTTPError, socket.error) as ex:
                 status_code = getattr(ex, "code", 0)
                 if status_code == 504:
                     err_msg = "请求超时，请稍后重试或减少查询条数"
