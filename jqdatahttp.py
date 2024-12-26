@@ -29,7 +29,7 @@ except ImportError:
     from StringIO import StringIO
 
 
-__version__ = '0.1.8'
+__version__ = '0.1.9'
 
 
 logger = logging.getLogger('jqdatahttp')
