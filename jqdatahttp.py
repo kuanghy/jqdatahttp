@@ -1268,6 +1268,18 @@ def get_factor_values(securities, factors=None, start_date=None, end_date=None, 
     return data_dict
 
 
+def get_factor_style_returns(factors, start_date=None, end_date=None,
+                             count=None, universe=None, industry='sw_l1'):
+    if not isinstance(factors, str):
+        factors = ",".join(factors)
+    data = api.get_factor_style_returns(
+        factors=factors, start_date=start_date, end_date=end_date, count=count,
+        universe=universe, industry=industry,
+    )
+    data = _csv2df(data).set_index('date')
+    return data
+
+
 def get_index_weights(index_id, date=None):
     """获取指数成分股权重"""
     assert index_id, "index_id is required"

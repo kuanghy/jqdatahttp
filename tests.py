@@ -220,6 +220,20 @@ def test_get_factor_values():
     assert df.iloc[0, 0] > 0
 
 
+def test_get_factor_style_returns():
+    df = jqdatahttp.get_factor_style_returns("size")
+    print(df)
+    assert not df.empty
+
+    df = jqdatahttp.get_factor_style_returns(
+        factors="size,beta,HY001",
+        start_date='2025-08-15', end_date="2025-08-18",
+        industry='sw_l1'
+    )
+    print(df)
+    assert len(df) == 2
+
+
 def test_get_extras():
     data = jqdatahttp.get_extras(
         'acc_net_value', ['510300.XSHG', '510050.XSHG'],
